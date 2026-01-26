@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: acm-kessel-schema-cache
+  namespace: acm-kessel
+data:
+  schema_cache.json: |
+    {
+    }

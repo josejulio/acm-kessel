@@ -1,0 +1,19 @@
+server:
+  http:
+    addr: "${HTTPADDR:0.0.0.0:8000}"
+    timeout: 1s
+    pathprefix: "/api/authz"
+  grpc:
+    addr: "${GRPCADDR:0.0.0.0:9000}"
+    timeout: 30s
+  minLogLevel: Info
+  auth:
+    enableAuth: false
+data:
+  spiceDb:
+    endpoint: "${ENDPOINT:0.0.0.0:50051}"
+    token: "${PRESHARED}"
+    tokenFile: "${PRESHARED_FILE:.secrets/local-spicedb-secret}"
+    schemaFile: "${SCHEMA_FILE:deploy/schema.zed}"
+    useTLS: false
+    fullyConsistent: true

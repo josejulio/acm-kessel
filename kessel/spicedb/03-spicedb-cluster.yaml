@@ -1,0 +1,9 @@
+apiVersion: authzed.com/v1alpha1
+kind: SpiceDBCluster
+metadata:
+  name: acm-kessel-spicedb
+  namespace: acm-kessel
+spec:
+  config:
+    datastoreEngine: memory  # Use "postgres" for production with external database
+  secretName: acm-kessel-spicedb-config

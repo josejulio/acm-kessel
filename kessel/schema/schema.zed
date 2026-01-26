@@ -1,0 +1,45 @@
+definition rbac/group {
+	permission member = t_member
+	relation t_member: rbac/principal | rbac/group#member
+	permission owner = t_owner
+	relation t_owner: rbac/tenant
+}
+
+definition rbac/platform {
+	permission binding = t_binding
+	relation t_binding: rbac/role_binding
+	permission regional_cluster_cluster_create = t_binding->regional_cluster_cluster_create
+}
+
+definition rbac/principal {}
+
+definition rbac/role {
+	permission child = t_child
+	relation t_child: rbac/role
+	permission regional_cluster_cluster_create = t_regional_cluster_cluster_create + t_child->regional_cluster_cluster_create
+	relation t_regional_cluster_cluster_create: rbac/principal:*
+}
+
+definition rbac/role_binding {
+	permission regional_cluster_cluster_create = (subject & t_role->regional_cluster_cluster_create)
+	permission role = t_role
+	relation t_role: rbac/role
+	permission subject = t_subject
+	relation t_subject: rbac/principal | rbac/group#member
+}
+
+definition rbac/tenant {
+	permission binding = t_binding
+	relation t_binding: rbac/role_binding
+	permission platform = t_platform
+	relation t_platform: rbac/platform
+	permission regional_cluster_cluster_create = t_binding->regional_cluster_cluster_create + t_platform->regional_cluster_cluster_create
+}
+
+definition rbac/workspace {
+	permission binding = t_binding
+	relation t_binding: rbac/role_binding
+	permission parent = t_parent
+	relation t_parent: rbac/workspace | rbac/tenant
+	permission regional_cluster_cluster_create = t_binding->regional_cluster_cluster_create + t_parent->regional_cluster_cluster_create
+}

@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: acm-kessel
+  labels:
+    app.kubernetes.io/name: acm-kessel
+    app.kubernetes.io/component: kessel
+    app.kubernetes.io/part-of: acm

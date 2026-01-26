@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: acm-kessel-relations-api
+  namespace: acm-kessel
+  labels:
+    app: acm-kessel-relations-api
+    app.kubernetes.io/name: relations-api
+    app.kubernetes.io/component: kessel
+    app.kubernetes.io/part-of: acm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: acm-kessel-relations-api
+  template:
+    metadata:
+      labels:
+        app: acm-kessel-relations-api
+    spec:
+      containers:
+      - name: relations-api
+        image: quay.io/redhat-services-prod/project-kessel-tenant/kessel-relations/relations-api:latest
+        ports:
+        - name: grpc
+          containerPort: 9000
+          protocol: TCP
+        - name: http
+          containerPort: 8000
+          protocol: TCP
+        env:
+        - name: SPICEDB_ENDPOINT
+          value: "acm-kessel-spicedb-grpc.acm-kessel.svc.cluster.local:50051"
+        - name: SPICEDB_PRESHARED
+          valueFrom:
+            secretKeyRef:
+              name: acm-kessel-spicedb-config
+              key: preshared_key
+        - name: SPICEDB_SCHEMA_FILE
+          value: "/etc/schema/schema.zed"
+        volumeMounts:
+        - name: schema
+          mountPath: /etc/schema
+          readOnly: true
+        - name: relations-api-config
+          mountPath: /config
+          readOnly: true
+        livenessProbe:
+          httpGet:
+            path: /api/authz/livez
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /api/authz/readyz
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+      volumes:
+      - name: schema
+        configMap:
+          name: acm-kessel-spicedb-schema
+      - name: relations-api-config
+        configMap:
+          name: acm-kessel-relations-api-config

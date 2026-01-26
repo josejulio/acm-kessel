@@ -1,0 +1,50 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: acm-kessel
+
+namespace: acm-kessel
+
+resources:
+  # Namespace
+  - 00-namespace.yaml
+
+  # PostgreSQL Operator (Crunchy Data)
+  - postgres/01-postgres-operator-namespace.yaml
+  - postgres/02-postgres-operator-group.yaml
+  - postgres/03-postgres-operator-subscription.yaml
+  - postgres/04-postgres-cluster.yaml
+
+  # SpiceDB Operator
+  - operator/01-spicedb-operator.yaml
+
+  # SpiceDB Cluster
+  - spicedb/02-spicedb-secret.yaml
+  - spicedb/03-spicedb-cluster.yaml
+
+  # Relations API
+  - relations-api/04-relations-api-configmap-schema.yaml
+  - relations-api/05-relations-api-configmap-config.yaml
+  - relations-api/06-relations-api-deployment.yaml
+  - relations-api/07-relations-api-service.yaml
+
+  # Inventory API
+  # Note: 08-postgres-secret.yaml is only needed for external PostgreSQL
+  # When using Crunchy operator, comment out or remove the line below:
+  # - inventory-api/08-postgres-secret.yaml
+  - inventory-api/09-inventory-api-configmap-schema-cache.yaml
+  - inventory-api/10-inventory-api-secret-config.yaml
+  - inventory-api/11-inventory-api-deployment.yaml
+  - inventory-api/12-inventory-api-service.yaml
+
+commonLabels:
+  app.kubernetes.io/part-of: acm
+  app.kubernetes.io/managed-by: kustomize
+
+# You can add image tag overrides here
+# images:
+#   - name: quay.io/redhat-services-prod/project-kessel-tenant/kessel-relations/relations-api
+#     newTag: v1.0.0
+#   - name: quay.io/redhat-services-prod/project-kessel-tenant/kessel-inventory/inventory-api
+#     newTag: v1.0.0

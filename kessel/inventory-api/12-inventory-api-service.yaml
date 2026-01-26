@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: acm-kessel-inventory-api
+  namespace: acm-kessel
+  labels:
+    app: acm-kessel-inventory-api
+    app.kubernetes.io/name: inventory-api
+    app.kubernetes.io/component: kessel
+    app.kubernetes.io/part-of: acm
+spec:
+  type: ClusterIP
+  selector:
+    app: acm-kessel-inventory-api
+  ports:
+  - name: grpc
+    port: 9000
+    targetPort: 9000
+    protocol: TCP

@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: acm-kessel-relations-api
+  namespace: acm-kessel
+  labels:
+    app: acm-kessel-relations-api
+    app.kubernetes.io/name: relations-api
+    app.kubernetes.io/component: kessel
+    app.kubernetes.io/part-of: acm
+spec:
+  type: ClusterIP
+  selector:
+    app: acm-kessel-relations-api
+  ports:
+  - name: grpc
+    port: 9000
+    targetPort: 9000
+    protocol: TCP

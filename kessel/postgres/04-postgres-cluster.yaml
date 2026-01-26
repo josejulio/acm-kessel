@@ -1,0 +1,61 @@
+apiVersion: postgres-operator.crunchydata.com/v1beta1
+kind: PostgresCluster
+metadata:
+  name: acm-kessel-postgres
+  namespace: acm-kessel
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: acm
+spec:
+  # PostgreSQL version
+  postgresVersion: 16
+
+  # Image repository (uses certified images from Red Hat)
+  image: registry.developers.crunchydata.com/crunchydata/crunchy-postgres:ubi8-16.4-1
+
+  # Instances (primary + replicas)
+  instances:
+    - name: instance1
+      replicas: 1  # Set to 2 or more for HA
+      dataVolumeClaimSpec:
+        accessModes:
+        - "ReadWriteOnce"
+        resources:
+          requests:
+            storage: 10Gi
+      # Resource limits (adjust for production)
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 1000m
+          memory: 1Gi
+
+  # Backups configuration
+  backups:
+    pgbackrest:
+      image: registry.developers.crunchydata.com/crunchydata/crunchy-pgbackrest:ubi8-2.51-0
+      repos:
+      - name: repo1
+        volume:
+          volumeClaimSpec:
+            accessModes:
+            - "ReadWriteOnce"
+            resources:
+              requests:
+                storage: 10Gi
+
+  # Users and databases
+  users:
+    - name: inventory_api
+      databases:
+        - inventory
+      options: "SUPERUSER"  # Required for migrations
+
+  # Monitoring (optional but recommended)
+  monitoring:
+    pgmonitor:
+      exporter:
+        image: registry.developers.crunchydata.com/crunchydata/crunchy-postgres-exporter:ubi8-5.6.0-0

@@ -1,0 +1,9 @@
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: postgres-operator-group
+  namespace: pgo
+spec:
+  targetNamespaces:
+  - pgo
+  - acm-kessel
