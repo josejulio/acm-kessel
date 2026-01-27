@@ -30,7 +30,7 @@ spec:
           protocol: TCP
         env:
         - name: SPICEDB_ENDPOINT
-          value: "acm-kessel-spicedb-grpc.acm-kessel.svc.cluster.local:50051"
+          value: "acm-kessel-spicedb.acm-kessel.svc.cluster.local:50051"
         - name: SPICEDB_PRESHARED
           valueFrom:
             secretKeyRef:

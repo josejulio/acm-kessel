@@ -28,27 +28,27 @@ spec:
         - name: INVENTORY_API_STORAGE_POSTGRES_HOST
           valueFrom:
             secretKeyRef:
-              name: acm-kessel-postgres-pguser-inventory-api
+              name: acm-kessel-postgres-pguser-inventoryapi
               key: host
         - name: INVENTORY_API_STORAGE_POSTGRES_PORT
           valueFrom:
             secretKeyRef:
-              name: acm-kessel-postgres-pguser-inventory-api
+              name: acm-kessel-postgres-pguser-inventoryapi
               key: port
         - name: INVENTORY_API_STORAGE_POSTGRES_USER
           valueFrom:
             secretKeyRef:
-              name: acm-kessel-postgres-pguser-inventory-api
+              name: acm-kessel-postgres-pguser-inventoryapi
               key: user
         - name: INVENTORY_API_STORAGE_POSTGRES_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: acm-kessel-postgres-pguser-inventory-api
+              name: acm-kessel-postgres-pguser-inventoryapi
               key: password
         - name: INVENTORY_API_STORAGE_POSTGRES_DBNAME
           valueFrom:
             secretKeyRef:
-              name: acm-kessel-postgres-pguser-inventory-api
+              name: acm-kessel-postgres-pguser-inventoryapi
               key: dbname
         volumeMounts:
         - name: config-volume
@@ -72,27 +72,27 @@ spec:
         - name: INVENTORY_API_STORAGE_POSTGRES_HOST
           valueFrom:
             secretKeyRef:
-              name: acm-kessel-postgres-pguser-inventory-api
+              name: acm-kessel-postgres-pguser-inventoryapi
               key: host
         - name: INVENTORY_API_STORAGE_POSTGRES_PORT
           valueFrom:
             secretKeyRef:
-              name: acm-kessel-postgres-pguser-inventory-api
+              name: acm-kessel-postgres-pguser-inventoryapi
               key: port
         - name: INVENTORY_API_STORAGE_POSTGRES_USER
           valueFrom:
             secretKeyRef:
-              name: acm-kessel-postgres-pguser-inventory-api
+              name: acm-kessel-postgres-pguser-inventoryapi
               key: user
         - name: INVENTORY_API_STORAGE_POSTGRES_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: acm-kessel-postgres-pguser-inventory-api
+              name: acm-kessel-postgres-pguser-inventoryapi
               key: password
         - name: INVENTORY_API_STORAGE_POSTGRES_DBNAME
           valueFrom:
             secretKeyRef:
-              name: acm-kessel-postgres-pguser-inventory-api
+              name: acm-kessel-postgres-pguser-inventoryapi
               key: dbname
         volumeMounts:
         - name: config-volume

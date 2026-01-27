@@ -11,8 +11,8 @@ spec:
   # PostgreSQL version
   postgresVersion: 16
 
-  # Image repository (uses certified images from Red Hat)
-  image: registry.developers.crunchydata.com/crunchydata/crunchy-postgres:ubi8-16.4-1
+  # Note: Image is managed automatically by the operator
+  # The operator uses certified images bundled with the OLM installation
 
   # Instances (primary + replicas)
   instances:
@@ -36,7 +36,7 @@ spec:
   # Backups configuration
   backups:
     pgbackrest:
-      image: registry.developers.crunchydata.com/crunchydata/crunchy-pgbackrest:ubi8-2.51-0
+      # Image managed by operator
       repos:
       - name: repo1
         volume:
@@ -49,7 +49,7 @@ spec:
 
   # Users and databases
   users:
-    - name: inventory_api
+    - name: inventoryapi
       databases:
         - inventory
       options: "SUPERUSER"  # Required for migrations
@@ -58,4 +58,8 @@ spec:
   monitoring:
     pgmonitor:
       exporter:
-        image: registry.developers.crunchydata.com/crunchydata/crunchy-postgres-exporter:ubi8-5.6.0-0
+        # Image managed by operator
+        resources:
+          requests:
+            cpu: 10m
+            memory: 64Mi

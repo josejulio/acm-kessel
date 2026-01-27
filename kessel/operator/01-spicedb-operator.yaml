@@ -3482,7 +3482,7 @@ metadata:
   labels:
     app: spicedb-operator
     app.kubernetes.io/instance: spicedb-operator
-  name: acm-kessel
+  name: spicedb-operator
   namespace: acm-kessel
 spec:
   replicas: 1
@@ -3543,9 +3543,7 @@ spec:
             drop:
             - ALL
           readOnlyRootFilesystem: true
-          runAsGroup: 65532
           runAsNonRoot: true
-          runAsUser: 65532
           seccompProfile:
             type: RuntimeDefault
         terminationMessagePolicy: FallbackToLogsOnError
@@ -3554,12 +3552,10 @@ spec:
           name: config
           readOnly: true
       securityContext:
-        runAsGroup: 65532
         runAsNonRoot: true
-        runAsUser: 65532
         seccompProfile:
           type: RuntimeDefault
-      serviceAccountName: spicedb-operator
+      serviceAccountName: acm-kessel
       volumes:
       - configMap:
           defaultMode: 420

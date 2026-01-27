@@ -41,11 +41,10 @@ acm/
 │   ├── 06-relations-api-deployment.yaml          # Relations API deployment
 │   └── 07-relations-api-service.yaml             # Relations API service
 ├── inventory-api/
-│   ├── 08-postgres-secret.yaml                   # PostgreSQL credentials (only for external DB)
-│   ├── 09-inventory-api-configmap-schema-cache.yaml
-│   ├── 10-inventory-api-secret-config.yaml       # Inventory API configuration
-│   ├── 11-inventory-api-deployment.yaml          # Inventory API deployment
-│   └── 12-inventory-api-service.yaml             # Inventory API service
+│   ├── 09-inventory-api-configmap-schema-cache.yaml  # Schema cache
+│   ├── 10-inventory-api-secret-config.yaml           # Inventory API configuration
+│   ├── 11-inventory-api-deployment.yaml              # Inventory API deployment
+│   └── 12-inventory-api-service.yaml                 # Inventory API service
 ├── config/                                        # Application configuration files
 ├── schema/                                        # Schema files
 ├── kustomization.yaml                             # Kustomize deployment file
@@ -87,7 +86,7 @@ oc wait --for=condition=available --timeout=600s deployment/pgo -n pgo
 oc apply -f postgres/04-postgres-cluster.yaml
 
 # Wait for PostgreSQL to be ready
-oc wait --for=condition=ready --timeout=600s postgrescluster/acm-kessel-postgres -n acm-kessel
+oc wait --for=condition=PGBackRestRepoHostReady --timeout=600s postgrescluster/acm-kessel-postgres -n acm-kessel
 
 # 4. Deploy SpiceDB operator
 oc apply -f operator/01-spicedb-operator.yaml
@@ -99,7 +98,7 @@ oc wait --for=condition=available --timeout=300s deployment/spicedb-operator -n 
 oc apply -f spicedb/
 
 # Wait for SpiceDB to be ready
-oc wait --for=condition=ready --timeout=300s spicedbcluster/acm-kessel-spicedb -n acm-kessel
+oc wait --for=condition=available --timeout=300s deployment/acm-kessel-spicedb-spicedb -n acm-kessel
 
 # 6. Deploy Relations API
 oc apply -f relations-api/
@@ -114,7 +113,7 @@ oc apply -f inventory-api/12-inventory-api-service.yaml
 **Using Kustomize:**
 
 ```bash
-oc apply -k acm/
+oc apply -k kessel/
 ```
 
 ### Step 3: Verify Deployment
@@ -156,10 +155,10 @@ The Crunchy operator automatically creates a secret with database credentials:
 
 ```bash
 # Check the auto-generated secret
-oc get secret acm-kessel-postgres-pguser-inventory-api -n acm-kessel
+oc get secret acm-kessel-postgres-pguser-inventoryapi -n acm-kessel
 
 # View the connection details (base64 encoded)
-oc get secret acm-kessel-postgres-pguser-inventory-api -n acm-kessel -o yaml
+oc get secret acm-kessel-postgres-pguser-inventoryapi -n acm-kessel -o yaml
 ```
 
 ### Step 4: Access the APIs
@@ -263,17 +262,17 @@ The operator automatically creates connection secrets. To connect to the databas
 
 ```bash
 # Get the database connection details
-oc get secret acm-kessel-postgres-pguser-inventory-api -n acm-kessel -o jsonpath='{.data.host}' | base64 -d
-oc get secret acm-kessel-postgres-pguser-inventory-api -n acm-kessel -o jsonpath='{.data.port}' | base64 -d
-oc get secret acm-kessel-postgres-pguser-inventory-api -n acm-kessel -o jsonpath='{.data.user}' | base64 -d
-oc get secret acm-kessel-postgres-pguser-inventory-api -n acm-kessel -o jsonpath='{.data.password}' | base64 -d
+oc get secret acm-kessel-postgres-pguser-inventoryapi -n acm-kessel -o jsonpath='{.data.host}' | base64 -d
+oc get secret acm-kessel-postgres-pguser-inventoryapi -n acm-kessel -o jsonpath='{.data.port}' | base64 -d
+oc get secret acm-kessel-postgres-pguser-inventoryapi -n acm-kessel -o jsonpath='{.data.user}' | base64 -d
+oc get secret acm-kessel-postgres-pguser-inventoryapi -n acm-kessel -o jsonpath='{.data.password}' | base64 -d
 
 # Or use port-forward to connect directly
 oc port-forward -n acm-kessel svc/acm-kessel-postgres-primary 5432:5432
 
 # Then connect with psql
-PGPASSWORD=$(oc get secret acm-kessel-postgres-pguser-inventory-api -n acm-kessel -o jsonpath='{.data.password}' | base64 -d) \
-psql -h localhost -U inventory_api -d inventory
+PGPASSWORD=$(oc get secret acm-kessel-postgres-pguser-inventoryapi -n acm-kessel -o jsonpath='{.data.password}' | base64 -d) \
+psql -h localhost -U inventoryapi -d inventory
 ```
 
 ### Using External PostgreSQL (Optional)
@@ -281,19 +280,24 @@ psql -h localhost -U inventory_api -d inventory
 If you prefer to use an external PostgreSQL database instead of the operator:
 
 1. **Do not** apply the postgres/ manifests
-2. Update `inventory-api/08-postgres-secret.yaml` with your external database credentials
+2. Create a secret with your external database credentials:
+   ```bash
+   oc create secret generic acm-kessel-postgres-credentials -n acm-kessel \
+     --from-literal=host=your-postgres-host.example.com \
+     --from-literal=port=5432 \
+     --from-literal=user=inventoryapi \
+     --from-literal=password=YOUR_SECURE_PASSWORD \
+     --from-literal=dbname=inventory
+   ```
 3. In `inventory-api/11-inventory-api-deployment.yaml`, change the secret reference from:
    ```yaml
-   name: acm-kessel-postgres-pguser-inventory-api
+   name: acm-kessel-postgres-pguser-inventoryapi
    ```
    to:
    ```yaml
    name: acm-kessel-postgres-credentials
    ```
-4. Apply the updated secret:
-   ```bash
-   oc apply -f inventory-api/08-postgres-secret.yaml
-   ```
+4. Apply the inventory API manifests
 
 ## Bootstrap SpiceDB with Initial Data
 
@@ -415,7 +419,7 @@ oc logs -f deployment/spicedb-operator -n acm-kessel
 
 3. **Inventory API fails to start**:
    - Verify PostgreSQL is ready: `oc get postgrescluster -n acm-kessel`
-   - Check the auto-generated secret exists: `oc get secret acm-kessel-postgres-pguser-inventory-api -n acm-kessel`
+   - Check the auto-generated secret exists: `oc get secret acm-kessel-postgres-pguser-inventoryapi -n acm-kessel`
    - Check migration logs: `oc logs -n acm-kessel -l app=acm-kessel-inventory-api -c migration`
 
 4. **Relations API can't connect to SpiceDB**:
@@ -457,7 +461,7 @@ oc delete -f operator/01-spicedb-operator.yaml
 - All resources are labeled with `app.kubernetes.io/part-of: acm` for easy identification
 - PostgreSQL is managed by the **Crunchy Data PostgreSQL Operator** instead of AWS RDS
 - The operator automatically manages database credentials, backups, and high availability
-- Database credentials are stored in the auto-generated secret: `acm-kessel-postgres-pguser-inventory-api`
+- Database credentials are stored in the auto-generated secret: `acm-kessel-postgres-pguser-inventoryapi`
 
 ## Support
 
