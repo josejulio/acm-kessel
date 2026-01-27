@@ -15,21 +15,33 @@ The Kessel stack consists of:
 
 ## Prerequisites
 
-- OpenShift cluster (4.12+) with Operator Lifecycle Manager (OLM)
-- Access to the OpenShift OperatorHub (for Crunchy PostgreSQL Operator)
-- `oc` CLI tool
+**Required:**
+- Kubernetes cluster (1.20+) or OpenShift (4.12+)
+- `kubectl` or `oc` CLI tool
 - Cluster admin privileges (for operator installation)
+
+**Optional (only if deploying PostgreSQL in-cluster):**
+- Operator Lifecycle Manager (OLM)
+  - ✅ OpenShift: Included by default
+  - ⚠️ Vanilla Kubernetes: [Install OLM](https://olm.operatorframework.io/docs/getting-started/) (5 minute setup)
+- Access to OperatorHub or install Crunchy PostgreSQL Operator manually
 
 ## Directory Structure
 
 ```
 acm/
 ├── 00-namespace.yaml                              # ACM Kessel namespace
-├── postgres/                                      # PostgreSQL Operator (Crunchy Data)
+├── postgres/                                      # PostgreSQL Operator (Crunchy Data) - Production
 │   ├── 01-postgres-operator-namespace.yaml       # Operator namespace
 │   ├── 02-postgres-operator-group.yaml           # Operator group
 │   ├── 03-postgres-operator-subscription.yaml    # Operator subscription
 │   └── 04-postgres-cluster.yaml                  # PostgreSQL cluster instance
+├── postgres-dev/                                  # Simple PostgreSQL - Development only
+│   ├── 01-postgres-dev-secret.yaml               # Database credentials
+│   ├── 02-postgres-dev-pvc.yaml                  # Persistent storage
+│   ├── 03-postgres-dev-deployment.yaml           # PostgreSQL deployment
+│   ├── 04-postgres-dev-service.yaml              # PostgreSQL service
+│   └── README.md                                  # Development PostgreSQL guide
 ├── operator/
 │   └── 01-spicedb-operator.yaml                  # SpiceDB operator installation
 ├── spicedb/
@@ -53,9 +65,66 @@ acm/
 
 ## Installation
 
+1. Create namespace
+oc apply -f 00-namespace.yaml
+
+### PostgreSQL Options
+
+The Inventory API requires a PostgreSQL database. You have **three options**:
+
+#### Option 1: Bring Your Own PostgreSQL
+
+Use an external PostgreSQL database (AWS RDS, Google Cloud SQL, Azure Database, etc.) or an existing PostgreSQL instance.
+
+**Requirements:**
+- PostgreSQL 14+
+- Database: `inventory`
+- User with `SUPERUSER` privileges (required for migrations)
+
+**Setup:**
+1. Skip the `postgres/` manifests entirely
+2. Create a Kubernetes secret with your database credentials:
+   ```bash
+   oc create secret generic acm-kessel-postgres-pguser-inventoryapi -n acm-kessel \
+     --from-literal=host=your-postgres-host.example.com \
+     --from-literal=port=5432 \
+     --from-literal=user=inventoryapi \
+     --from-literal=password=YOUR_SECURE_PASSWORD \
+     --from-literal=dbname=inventory
+   ```
+3. Continue with the installation steps below (skip Step 2a)
+
+#### Option 2: Deploy PostgreSQL in Cluster
+
+Deploy PostgreSQL using the Crunchy Data PostgreSQL Operator.
+
+**Note:** This option requires **Operator Lifecycle Manager (OLM)**:
+- ✅ OpenShift: OLM included by default
+- ⚠️ Vanilla Kubernetes: Install OLM first ([instructions](https://olm.operatorframework.io/docs/getting-started/))
+
+The operator automatically manages database credentials, backups, and high availability.
+
+#### Option 3: Simple PostgreSQL
+
+Deploy a simple PostgreSQL instance using standard Kubernetes manifests. No OLM required.
+
+**Setup:**
+1. The password is in plaintext in `postgres-dev/01-postgres-dev-secret.yaml`. Update as needed.
+2. Deploy:
+   ```bash
+   kubectl apply -f postgres-dev/
+   ```
+3. Verify:
+   ```bash
+   kubectl get pods -n acm-kessel -l app=acm-kessel-postgres
+   ```
+4. Continue with installation steps below (skip Step 2a)
+
+See `postgres-dev/README.md` for details.
+
 ### Step 1: Configure Secrets
 
-Before deploying, you MUST update the **SpiceDB Preshared Key** (`spicedb/02-spicedb-secret.yaml`):
+You can update the **SpiceDB Preshared Key** (`spicedb/02-spicedb-secret.yaml`) if required:
 
 ```bash
 # Generate a random 32-character key:
@@ -64,56 +133,55 @@ openssl rand -base64 32
 # Update the preshared_key value in the file
 ```
 
-**Note:** PostgreSQL credentials are automatically managed by the Crunchy Data Operator. No manual secret configuration is needed for the database.
-
 ### Step 2: Deploy the Stack
 
-Deploy the manifests in order:
+#### Step 2a: PostgreSQL (Optional - Skip if Using External Database)
+
+**Only if you chose Option 2 (in-cluster PostgreSQL):**
 
 ```bash
-# 1. Create namespaces
-oc apply -f 00-namespace.yaml
+# Create PostgreSQL operator namespace
 oc apply -f postgres/01-postgres-operator-namespace.yaml
 
-# 2. Deploy PostgreSQL Operator (Crunchy Data)
+# Deploy PostgreSQL Operator (Crunchy Data) - Requires OLM
 oc apply -f postgres/02-postgres-operator-group.yaml
 oc apply -f postgres/03-postgres-operator-subscription.yaml
 
 # Wait for the PostgreSQL operator to be ready (this may take a few minutes)
 oc wait --for=condition=available --timeout=600s deployment/pgo -n pgo
 
-# 3. Deploy PostgreSQL Cluster
+# Deploy PostgreSQL Cluster
 oc apply -f postgres/04-postgres-cluster.yaml
 
 # Wait for PostgreSQL to be ready
 oc wait --for=condition=PGBackRestRepoHostReady --timeout=600s postgrescluster/acm-kessel-postgres -n acm-kessel
+```
 
-# 4. Deploy SpiceDB operator
+The operator will automatically create a secret: `acm-kessel-postgres-pguser-inventoryapi`
+
+#### Step 2b: Core Services (Required)
+
+```bash
+# 1. Deploy SpiceDB operator
 oc apply -f operator/01-spicedb-operator.yaml
 
 # Wait for the operator to be ready
 oc wait --for=condition=available --timeout=300s deployment/spicedb-operator -n acm-kessel
 
-# 5. Deploy SpiceDB cluster
+# 2. Deploy SpiceDB cluster
 oc apply -f spicedb/
 
 # Wait for SpiceDB to be ready
 oc wait --for=condition=available --timeout=300s deployment/acm-kessel-spicedb-spicedb -n acm-kessel
 
-# 6. Deploy Relations API
+# 3. Deploy Relations API
 oc apply -f relations-api/
 
-# 7. Deploy Inventory API
+# 4. Deploy Inventory API
 oc apply -f inventory-api/09-inventory-api-configmap-schema-cache.yaml
 oc apply -f inventory-api/10-inventory-api-secret-config.yaml
 oc apply -f inventory-api/11-inventory-api-deployment.yaml
 oc apply -f inventory-api/12-inventory-api-service.yaml
-```
-
-**Using Kustomize:**
-
-```bash
-oc apply -k kessel/
 ```
 
 ### Step 3: Verify Deployment
@@ -256,48 +324,18 @@ backups:
               storage: 10Gi  # Backup storage size
 ```
 
-### Connecting to PostgreSQL
+### Connecting to PostgreSQL (In-Cluster Deployment Only)
 
-The operator automatically creates connection secrets. To connect to the database:
+If you deployed PostgreSQL in-cluster using the Crunchy operator, you can connect to it for debugging:
 
 ```bash
-# Get the database connection details
-oc get secret acm-kessel-postgres-pguser-inventoryapi -n acm-kessel -o jsonpath='{.data.host}' | base64 -d
-oc get secret acm-kessel-postgres-pguser-inventoryapi -n acm-kessel -o jsonpath='{.data.port}' | base64 -d
-oc get secret acm-kessel-postgres-pguser-inventoryapi -n acm-kessel -o jsonpath='{.data.user}' | base64 -d
-oc get secret acm-kessel-postgres-pguser-inventoryapi -n acm-kessel -o jsonpath='{.data.password}' | base64 -d
-
-# Or use port-forward to connect directly
+# Port-forward to PostgreSQL
 oc port-forward -n acm-kessel svc/acm-kessel-postgres-primary 5432:5432
 
-# Then connect with psql
+# Connect with psql
 PGPASSWORD=$(oc get secret acm-kessel-postgres-pguser-inventoryapi -n acm-kessel -o jsonpath='{.data.password}' | base64 -d) \
 psql -h localhost -U inventoryapi -d inventory
 ```
-
-### Using External PostgreSQL (Optional)
-
-If you prefer to use an external PostgreSQL database instead of the operator:
-
-1. **Do not** apply the postgres/ manifests
-2. Create a secret with your external database credentials:
-   ```bash
-   oc create secret generic acm-kessel-postgres-credentials -n acm-kessel \
-     --from-literal=host=your-postgres-host.example.com \
-     --from-literal=port=5432 \
-     --from-literal=user=inventoryapi \
-     --from-literal=password=YOUR_SECURE_PASSWORD \
-     --from-literal=dbname=inventory
-   ```
-3. In `inventory-api/11-inventory-api-deployment.yaml`, change the secret reference from:
-   ```yaml
-   name: acm-kessel-postgres-pguser-inventoryapi
-   ```
-   to:
-   ```yaml
-   name: acm-kessel-postgres-credentials
-   ```
-4. Apply the inventory API manifests
 
 ## Bootstrap SpiceDB with Initial Data
 
@@ -405,31 +443,6 @@ oc logs -f deployment/acm-kessel-inventory-api -n acm-kessel
 oc logs -f deployment/spicedb-operator -n acm-kessel
 ```
 
-### Common Issues
-
-1. **PostgreSQL operator not installing**:
-   - Check that the operator subscription was created: `oc get subscription -n pgo`
-   - Verify OperatorHub is accessible: `oc get catalogsource -n openshift-marketplace`
-   - Check install plan: `oc get installplan -n pgo`
-
-2. **PostgreSQL cluster not ready**:
-   - Check the cluster status: `oc describe postgrescluster acm-kessel-postgres -n acm-kessel`
-   - Verify PVCs are bound: `oc get pvc -n acm-kessel`
-   - Check pod events: `oc get events -n acm-kessel --field-selector involvedObject.kind=Pod`
-
-3. **Inventory API fails to start**:
-   - Verify PostgreSQL is ready: `oc get postgrescluster -n acm-kessel`
-   - Check the auto-generated secret exists: `oc get secret acm-kessel-postgres-pguser-inventoryapi -n acm-kessel`
-   - Check migration logs: `oc logs -n acm-kessel -l app=acm-kessel-inventory-api -c migration`
-
-4. **Relations API can't connect to SpiceDB**:
-   - Verify SpiceDB cluster is ready: `oc get spicedbcluster -n acm-kessel`
-   - Check preshared key matches in secret: `oc get secret acm-kessel-spicedb-config -n acm-kessel`
-
-5. **SpiceDB cluster not starting**:
-   - Check operator logs: `oc logs -f deployment/spicedb-operator -n acm-kessel`
-   - Ensure CRDs are installed: `oc get crd spicedbclusters.authzed.com`
-
 ## Uninstall
 
 To remove the entire stack:
@@ -451,18 +464,3 @@ oc delete namespace pgo
 
 oc delete -f operator/01-spicedb-operator.yaml
 ```
-
-**Note:** Deleting the PostgreSQL cluster will also delete all data. Ensure you have backups if needed.
-
-## Notes
-
-- All "rosa" references from the original deployment have been renamed to "acm"
-- The namespace is `acm-kessel` to distinguish it from other Kessel deployments
-- All resources are labeled with `app.kubernetes.io/part-of: acm` for easy identification
-- PostgreSQL is managed by the **Crunchy Data PostgreSQL Operator** instead of AWS RDS
-- The operator automatically manages database credentials, backups, and high availability
-- Database credentials are stored in the auto-generated secret: `acm-kessel-postgres-pguser-inventoryapi`
-
-## Support
-
-For issues or questions, refer to the Kessel project documentation or contact the ACM team.

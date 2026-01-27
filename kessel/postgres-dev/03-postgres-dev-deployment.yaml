@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: acm-kessel-postgres
+  namespace: acm-kessel
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: acm
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # Required for PVC
+  selector:
+    matchLabels:
+      app: acm-kessel-postgres
+  template:
+    metadata:
+      labels:
+        app: acm-kessel-postgres
+        app.kubernetes.io/name: postgres
+        app.kubernetes.io/component: database
+        app.kubernetes.io/part-of: acm
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:16-alpine
+        ports:
+        - containerPort: 5432
+          name: postgres
+        env:
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              name: acm-kessel-postgres-pguser-inventoryapi
+              key: dbname
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: acm-kessel-postgres-pguser-inventoryapi
+              key: user
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: acm-kessel-postgres-pguser-inventoryapi
+              key: password
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        volumeMounts:
+        - name: postgres-storage
+          mountPath: /var/lib/postgresql/data
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - $(POSTGRES_USER)
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - $(POSTGRES_USER)
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: postgres-storage
+        persistentVolumeClaim:
+          claimName: acm-kessel-postgres-data
