@@ -49,6 +49,8 @@ spec:
         volumeMounts:
         - name: postgres-storage
           mountPath: /var/lib/postgresql/data
+        - name: init-scripts
+          mountPath: /docker-entrypoint-initdb.d
         resources:
           requests:
             cpu: 100m
@@ -76,3 +78,7 @@ spec:
       - name: postgres-storage
         persistentVolumeClaim:
           claimName: acm-kessel-postgres-data
+      - name: init-scripts
+        configMap:
+          name: postgres-init-rbac
+          defaultMode: 0755

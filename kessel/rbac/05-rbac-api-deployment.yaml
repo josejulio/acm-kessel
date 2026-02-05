@@ -1,0 +1,154 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: acm-kessel-rbac-api
+  namespace: acm-kessel
+  labels:
+    app.kubernetes.io/name: rbac
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: acm-rbac
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: acm-kessel-rbac-api
+  template:
+    metadata:
+      labels:
+        app: acm-kessel-rbac-api
+        app.kubernetes.io/name: rbac
+        app.kubernetes.io/component: api
+        app.kubernetes.io/part-of: acm-rbac
+    spec:
+      initContainers:
+      - name: run-migrations
+        image: quay.io/cloudservices/rbac:latest
+        imagePullPolicy: Always
+        command: ["/bin/bash", "/opt/rbac/deploy/init-container-setup.sh"]
+        env:
+        - name: MIGRATE_AND_SEED_ON_INIT
+          value: "true"
+        - name: DATABASE_HOST
+          valueFrom:
+            secretKeyRef:
+              name: acm-kessel-rbac-db
+              key: DATABASE_HOST
+        - name: DATABASE_PORT
+          valueFrom:
+            secretKeyRef:
+              name: acm-kessel-rbac-db
+              key: DATABASE_PORT
+        - name: DATABASE_NAME
+          valueFrom:
+            secretKeyRef:
+              name: acm-kessel-rbac-db
+              key: DATABASE_NAME
+        - name: DATABASE_USER
+          valueFrom:
+            secretKeyRef:
+              name: acm-kessel-rbac-db
+              key: DATABASE_USER
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: acm-kessel-rbac-db
+              key: DATABASE_PASSWORD
+        - name: DJANGO_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: acm-kessel-rbac-config
+              key: django-secret-key
+        envFrom:
+        - configMapRef:
+            name: acm-kessel-rbac-config
+      containers:
+      - name: rbac-api
+        # Official RBAC image (now publicly accessible!)
+        image: quay.io/cloudservices/rbac:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        env:
+        # Database configuration
+        - name: DATABASE_HOST
+          valueFrom:
+            secretKeyRef:
+              name: acm-kessel-rbac-db
+              key: DATABASE_HOST
+        - name: DATABASE_PORT
+          valueFrom:
+            secretKeyRef:
+              name: acm-kessel-rbac-db
+              key: DATABASE_PORT
+        - name: DATABASE_NAME
+          valueFrom:
+            secretKeyRef:
+              name: acm-kessel-rbac-db
+              key: DATABASE_NAME
+        - name: DATABASE_USER
+          valueFrom:
+            secretKeyRef:
+              name: acm-kessel-rbac-db
+              key: DATABASE_USER
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: acm-kessel-rbac-db
+              key: DATABASE_PASSWORD
+
+        # Django secret key
+        - name: DJANGO_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: acm-kessel-rbac-config
+              key: django-secret-key
+
+        # All other configuration from ConfigMap
+        envFrom:
+        - configMapRef:
+            name: acm-kessel-rbac-config
+
+        resources:
+          requests:
+            cpu: 100m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+
+        livenessProbe:
+          httpGet:
+            path: /api/rbac/v1/status/
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 3
+
+        readinessProbe:
+          httpGet:
+            path: /api/rbac/v1/status/
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: acm-kessel-rbac-api
+  namespace: acm-kessel
+  labels:
+    app.kubernetes.io/name: rbac
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: acm-rbac
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: acm-kessel-rbac-api

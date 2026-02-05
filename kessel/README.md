@@ -1,6 +1,39 @@
-# ACM Kessel Deployment for OpenShift
+# ACM Kessel Deployment
 
-This directory contains Kubernetes manifests for deploying the Kessel stack into an OpenShift cluster for the ACM project.
+This directory contains Kubernetes manifests for deploying the Kessel stack (Relations API, Inventory API, SpiceDB, RBAC, and PostgreSQL) into Kubernetes or OpenShift clusters.
+
+## 🚀 Quick Start (Automated Deployment)
+
+For vanilla Kubernetes (kind, minikube, k3s, Docker Desktop), use the automated deployment script:
+
+```bash
+# Deploy entire stack with one command
+./deploy-vanilla-k8s.sh
+
+# Later, to clean up everything
+./cleanup-vanilla-k8s.sh
+```
+
+**What the script does:**
+- ✅ Creates namespace (acm-kessel)
+- ✅ Deploys PostgreSQL (dev mode)
+- ✅ Deploys SpiceDB + Operator
+- ✅ Deploys Relations API
+- ✅ Deploys Inventory API
+- ✅ Deploys RBAC (using public quay.io image)
+- ✅ Waits for all components to be ready
+- ✅ Provides verification commands
+
+**Deployment time:** ~3-5 minutes
+
+**Verify deployment:**
+```bash
+./smoketest.sh  # Runs 37 comprehensive smoke tests (includes workspace CRUD)
+```
+
+**Note:** The RBAC deployment uses a default Django secret key. For production, update `rbac/02-rbac-secret.yaml` before deploying.
+
+**For manual deployment or OpenShift**, see the detailed installation steps below.
 
 ## Components
 

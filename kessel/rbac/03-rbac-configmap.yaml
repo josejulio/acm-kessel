@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: acm-kessel-rbac-config
+  namespace: acm-kessel
+  labels:
+    app.kubernetes.io/name: rbac
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: acm-rbac
+data:
+  # API Configuration
+  API_PATH_PREFIX: "/api/rbac"
+
+  # Environment
+  DEVELOPMENT: "false"
+  DJANGO_DEBUG: "false"
+  DJANGO_LOG_LEVEL: "INFO"
+  DJANGO_LOG_HANDLERS: "console"
+
+  # Redis Configuration
+  REDIS_HOST: "acm-kessel-rbac-redis"
+  REDIS_PORT: "6379"
+
+  # Disable Insights/Console dependencies
+  CLOWDER_ENABLED: "false"
+  KAFKA_ENABLED: "false"
+  NOTIFICATIONS_ENABLED: "false"
+  PRINCIPAL_CLEANUP_DELETION_ENABLED_UMB: "false"
+  UMB_JOB_ENABLED: "false"
+
+  # Enable Kessel integration
+  REPLICATION_TO_RELATION_ENABLED: "true"
+  RELATION_API_SERVER: "acm-kessel-relations-api.acm-kessel.svc.cluster.local:9000"
+  INVENTORY_API_SERVER: "acm-kessel-inventory-api.acm-kessel.svc.cluster.local:9000"
+  INVENTORY_API_LOCAL: "true"
+
+  # Seeding and Bootstrap
+  PERMISSION_SEEDING_ENABLED: "true"
+  ROLE_SEEDING_ENABLED: "true"
+  GROUP_SEEDING_ENABLED: "true"
+
+  # V2 API (modern API version)
+  V2_APIS_ENABLED: "true"
+  V2_BOOTSTRAP_TENANT: "true"
+
+  # Default workspace and tenant roles
+  # You can get available roles from: psql -U rbacuser -d rbac -c "SELECT uuid, name FROM management_rolev2;"
+  # User tenant Platform Role - for default user access
+  SYSTEM_DEFAULT_ROOT_WORKSPACE_ROLE_UUID: "e1522c63-c653-45f0-8e8e-19e5e708fc3a"
+  SYSTEM_DEFAULT_TENANT_ROLE_UUID: "e1522c63-c653-45f0-8e8e-19e5e708fc3a"
+  # Admin roles - for admin access
+  SYSTEM_ADMIN_ROOT_WORKSPACE_ROLE_UUID: "8d085a95-ac4e-4a73-bb2c-071d73310b88"
+  SYSTEM_ADMIN_TENANT_ROLE_UUID: "8d085a95-ac4e-4a73-bb2c-071d73310b88"
+
+  # PostgreSQL SSL
+  PGSSLMODE: "prefer"
+
+  # Principal configuration (standalone mode)
+  PRINCIPAL_USER_DOMAIN: "localhost"
+  AUTHENTICATE_WITH_ORG_ID: "false"

@@ -1,0 +1,34 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init-rbac
+  namespace: acm-kessel
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: acm
+data:
+  init-rbac-db.sh: |
+    #!/bin/bash
+    set -e
+
+    # Create RBAC database and user
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
+        -- Create RBAC user if it doesn't exist
+        DO \$\$
+        BEGIN
+          IF NOT EXISTS (SELECT FROM pg_user WHERE usename = 'rbacuser') THEN
+            CREATE USER rbacuser WITH PASSWORD 'changeme123';
+          END IF;
+        END
+        \$\$;
+
+        -- Create RBAC database if it doesn't exist
+        SELECT 'CREATE DATABASE rbac OWNER rbacuser'
+        WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'rbac')\gexec
+
+        -- Grant privileges
+        GRANT ALL PRIVILEGES ON DATABASE rbac TO rbacuser;
+    EOSQL
+
+    echo "RBAC database and user created successfully"

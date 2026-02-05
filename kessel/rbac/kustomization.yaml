@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: acm-kessel-rbac
+
+namespace: acm-kessel
+
+# Core RBAC deployment resources
+# Does NOT include build-related files (those are for building images, not deploying)
+resources:
+  - 01-redis-deployment.yaml
+  - 02-rbac-secret.yaml
+  - 03-rbac-configmap.yaml
+  - 04-rbac-db-secret.yaml
+  - 05-rbac-api-deployment.yaml
+
+commonLabels:
+  app.kubernetes.io/part-of: acm-rbac
+  app.kubernetes.io/managed-by: kustomize

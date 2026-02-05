@@ -1,0 +1,58 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: postgres-ensure-rbac-user
+  namespace: acm-kessel
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: acm
+spec:
+  # Allow the job to be recreated by deleting it first
+  ttlSecondsAfterFinished: 60
+  template:
+    metadata:
+      labels:
+        app: postgres-rbac-init
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: ensure-rbac-user
+        image: postgres:16-alpine
+        command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for PostgreSQL to be ready..."
+          until pg_isready -h acm-kessel-postgres -U inventoryapi; do
+            echo "PostgreSQL is unavailable - sleeping"
+            sleep 2
+          done
+
+          echo "Ensuring RBAC user and database exist..."
+          PGPASSWORD="${POSTGRES_PASSWORD}" psql -h acm-kessel-postgres -U inventoryapi -d inventory <<-EOSQL
+            DO \$\$
+            BEGIN
+              IF NOT EXISTS (SELECT FROM pg_user WHERE usename = 'rbacuser') THEN
+                CREATE USER rbacuser WITH PASSWORD 'changeme123' SUPERUSER;
+                RAISE NOTICE 'Created rbacuser';
+              ELSE
+                ALTER USER rbacuser WITH SUPERUSER;
+                RAISE NOTICE 'rbacuser already exists, ensured SUPERUSER privilege';
+              END IF;
+            END
+            \$\$;
+
+            SELECT 'CREATE DATABASE rbac OWNER rbacuser'
+            WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'rbac')\gexec
+
+            GRANT ALL PRIVILEGES ON DATABASE rbac TO rbacuser;
+          EOSQL
+
+          echo "RBAC user and database are ready!"
+        env:
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: acm-kessel-postgres-pguser-inventoryapi
+              key: password
