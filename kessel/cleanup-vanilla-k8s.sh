@@ -37,6 +37,12 @@ print_step "Step 1: Deleting RBAC"
 cd "${SCRIPT_DIR}/rbac"
 kubectl delete -k . --ignore-not-found=true || true
 
+# Step 1a: Delete MBOP
+print_step "Step 1a: Deleting MBOP"
+cd "${SCRIPT_DIR}/mbop"
+kubectl delete -f 02-mbop-deployment.yaml --ignore-not-found=true || true
+kubectl delete -f 01-mbop-configmap.yaml --ignore-not-found=true || true
+
 # Step 2: Delete Inventory API
 print_step "Step 2: Deleting Inventory API"
 cd "${SCRIPT_DIR}/inventory-api"

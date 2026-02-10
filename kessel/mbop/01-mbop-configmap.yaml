@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: acm-kessel-mbop-config
+  namespace: acm-kessel
+  labels:
+    app.kubernetes.io/name: mbop
+    app.kubernetes.io/component: permissions
+    app.kubernetes.io/part-of: acm-rbac
+data:
+  # Mock mode - returns fixed data instead of querying Keycloak
+  ALL_PASS: "true"
+
+  # Module configuration
+  USERS_MODULE: "mock"
+
+  # Keycloak configuration (dummy values in mock mode)
+  KEYCLOAK_SERVER: "http://localhost:8080"
+  KEYCLOAK_USERNAME: "admin"
+  KEYCLOAK_PASSWORD: "admin"

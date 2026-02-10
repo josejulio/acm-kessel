@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: acm-kessel-mbop
+  namespace: acm-kessel
+  labels:
+    app.kubernetes.io/name: mbop
+    app.kubernetes.io/component: permissions
+    app.kubernetes.io/part-of: acm-rbac
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: acm-kessel-mbop
+  template:
+    metadata:
+      labels:
+        app: acm-kessel-mbop
+        app.kubernetes.io/name: mbop
+        app.kubernetes.io/component: permissions
+        app.kubernetes.io/part-of: acm-rbac
+    spec:
+      containers:
+      - name: mbop
+        # Using cloudservices image (if available), otherwise build from source
+        # To build: git clone https://github.com/RedHatInsights/mbop && podman build -t localhost/mbop:latest .
+        image: quay.io/cloudservices/mbop:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8090
+          name: http
+          protocol: TCP
+        envFrom:
+        - configMapRef:
+            name: acm-kessel-mbop-config
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8090
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 3
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8090
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: acm-kessel-mbop
+  namespace: acm-kessel
+  labels:
+    app.kubernetes.io/name: mbop
+    app.kubernetes.io/component: permissions
+    app.kubernetes.io/part-of: acm-rbac
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8090
+    targetPort: 8090
+    protocol: TCP
+    name: http
+  selector:
+    app: acm-kessel-mbop

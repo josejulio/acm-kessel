@@ -175,7 +175,27 @@ fi
 echo ""
 
 # ============================================================================
-# 6. RBAC API Tests
+# 6. MBOP Tests
+# ============================================================================
+echo -e "${YELLOW}Testing MBOP (Mock BOP)...${NC}"
+
+run_test "MBOP pod is running" \
+    "kubectl get pod -n ${NAMESPACE} -l app=acm-kessel-mbop -o jsonpath='{.items[0].status.phase}' | grep -q 'Running'"
+
+run_test "MBOP health endpoint returns configured modules" \
+    "kubectl exec -n ${NAMESPACE} deployment/acm-kessel-mbop -- curl -s http://localhost:8090/ | grep -q 'configured_modules'"
+
+# Test MBOP entitlements endpoint (main endpoint used by RBAC) - returns HTTP 200
+run_test "MBOP entitlements endpoint accessible" \
+    "kubectl exec -n ${NAMESPACE} deployment/acm-kessel-mbop -- curl -s -o /dev/null -w '%{http_code}' http://localhost:8090/v1/users/smoketest/entitlements | grep -q '200'"
+
+run_test "MBOP users endpoint returns mock users" \
+    "kubectl exec -n ${NAMESPACE} deployment/acm-kessel-mbop -- curl -s http://localhost:8090/v3/accounts/12345/users | grep -q 'TestUser'"
+
+echo ""
+
+# ============================================================================
+# 7. RBAC API Tests
 # ============================================================================
 echo -e "${YELLOW}Testing RBAC API...${NC}"
 
@@ -205,7 +225,7 @@ run_test "RBAC API OpenAPI schema available" \
 
 # Test with authentication header (development mode)
 IDENTITY='{"identity":{"account_number":"12345","org_id":"67890","type":"User","user":{"username":"smoketest","email":"smoketest@example.com","is_org_admin":true}}}'
-ENCODED=$(echo -n "$IDENTITY" | base64 -w0 2>/dev/null || echo -n "$IDENTITY" | base64)
+ENCODED=$(echo -n "$IDENTITY" | base64 -w0 2>/dev/null || echo -n "$IDENTITY" | base64)1
 
 run_test "RBAC API accepts authenticated requests" \
     "curl -s -H 'x-rh-identity: $ENCODED' http://localhost:8080/api/rbac/v1/roles/ | grep -q -E 'data|count'"
@@ -236,18 +256,25 @@ run_test "RBAC API can delete workspace" \
 run_test "RBAC API workspace is deleted" \
     "test -n '$WORKSPACE_ID' && curl -s -H 'x-rh-identity: $ENCODED' http://localhost:8080/api/rbac/v2/workspaces/$WORKSPACE_ID/ -w '%{http_code}' | grep -q '404'"
 
+# Test users/principals endpoint (V1 API)
+run_test "RBAC API can query principals (users)" \
+    "curl -s -H 'x-rh-identity: $ENCODED' http://localhost:8080/api/rbac/v1/principals/ | python3 -c 'import sys,json; d=json.load(sys.stdin); exit(0 if \"data\" in d else 1)' 2>/dev/null"
+
+run_test "RBAC API principals endpoint returns valid JSON" \
+    "curl -s -H 'x-rh-identity: $ENCODED' http://localhost:8080/api/rbac/v1/principals/ | python3 -c 'import sys,json; json.load(sys.stdin)' 2>/dev/null"
+
 # Cleanup port forward
 kill $PF_PID 2>/dev/null || true
 
 echo ""
 
 # ============================================================================
-# 7. Integration Tests
+# 8. Integration Tests
 # ============================================================================
 echo -e "${YELLOW}Testing Integration...${NC}"
 
 run_test "All expected pods are running" \
-    "test \$(kubectl get pods -n ${NAMESPACE} --field-selector=status.phase=Running --no-headers | wc -l) -ge 7"
+    "test \$(kubectl get pods -n ${NAMESPACE} --field-selector=status.phase=Running --no-headers | wc -l) -ge 8"
 
 run_test "No pods are in CrashLoopBackOff" \
     "test \$(kubectl get pods -n ${NAMESPACE} --field-selector=status.phase=CrashLoopBackOff --no-headers 2>/dev/null | wc -l) -eq 0"

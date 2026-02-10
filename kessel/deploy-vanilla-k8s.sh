@@ -126,8 +126,18 @@ wait_for_deployment "acm-kessel-inventory-api" 120
 
 echo -e "${GREEN}Inventory API deployed successfully${NC}"
 
-# Step 7: Deploy RBAC
-print_step "Step 7: Deploying RBAC"
+# Step 7: Deploy MBOP (Mock BOP)
+print_step "Step 7: Deploying MBOP (Mock BOP)"
+cd "${SCRIPT_DIR}/mbop"
+kubectl apply -f 01-mbop-configmap.yaml
+kubectl apply -f 02-mbop-deployment.yaml
+
+wait_for_deployment "acm-kessel-mbop" 120
+
+echo -e "${GREEN}MBOP deployed successfully${NC}"
+
+# Step 8: Deploy RBAC
+print_step "Step 8: Deploying RBAC"
 cd "${SCRIPT_DIR}/rbac"
 kubectl apply -k .
 
@@ -139,8 +149,8 @@ wait_for_deployment "acm-kessel-rbac-api" 180
 
 echo -e "${GREEN}RBAC deployed successfully${NC}"
 
-# Step 8: Verify deployment
-print_step "Step 8: Verifying deployment"
+# Step 9: Verify deployment
+print_step "Step 9: Verifying deployment"
 echo ""
 echo -e "${BLUE}All Pods:${NC}"
 kubectl get pods -n ${NAMESPACE}

@@ -58,3 +58,10 @@ data:
   # Principal configuration (standalone mode)
   PRINCIPAL_USER_DOMAIN: "localhost"
   AUTHENTICATE_WITH_ORG_ID: "false"
+
+  # MBOP (Mock BOP) configuration
+  # BOP verification can be bypassed in development mode
+  BYPASS_BOP_VERIFICATION: "true"
+  # MBOP service endpoint (running in mock mode)
+  PRINCIPAL_PROXY_SERVICE_PATH: "http://acm-kessel-mbop.acm-kessel.svc.cluster.local:8090"
+  PRINCIPAL_PROXY_SERVICE_SSL_VERIFY: "false"

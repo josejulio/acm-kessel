@@ -20,6 +20,7 @@ For vanilla Kubernetes (kind, minikube, k3s, Docker Desktop), use the automated 
 - ✅ Deploys SpiceDB + Operator
 - ✅ Deploys Relations API
 - ✅ Deploys Inventory API
+- ✅ Deploys MBOP (Mock BOP in mock mode)
 - ✅ Deploys RBAC (using public quay.io image)
 - ✅ Waits for all components to be ready
 - ✅ Provides verification commands
@@ -28,7 +29,7 @@ For vanilla Kubernetes (kind, minikube, k3s, Docker Desktop), use the automated 
 
 **Verify deployment:**
 ```bash
-./smoketest.sh  # Runs 37 comprehensive smoke tests (includes workspace CRUD)
+./smoketest.sh  # Runs 43 comprehensive smoke tests (includes workspace CRUD and principals)
 ```
 
 **Note:** The RBAC deployment uses a default Django secret key. For production, update `rbac/02-rbac-secret.yaml` before deploying.
