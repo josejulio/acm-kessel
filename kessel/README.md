@@ -295,7 +295,7 @@ By default, SpiceDB is configured to use in-memory storage (`datastoreEngine: me
 The manifests use the following default images:
 
 - Relations API: `quay.io/redhat-services-prod/project-kessel-tenant/kessel-relations/relations-api:latest`
-- Inventory API: `quay.io/redhat-services-prod/project-kessel-tenant/kessel-inventory/inventory-api:f2a8a16`
+- Inventory API: `quay.io/redhat-services-prod/project-kessel-tenant/kessel-inventory/inventory-api:latest`
 
 Update the image tags in the deployment files as needed for your environment.
 

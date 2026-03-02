@@ -20,7 +20,7 @@ spec:
     spec:
       initContainers:
       - name: migration
-        image: quay.io/redhat-services-prod/project-kessel-tenant/kessel-inventory/inventory-api:f2a8a16
+        image: quay.io/redhat-services-prod/project-kessel-tenant/kessel-inventory/inventory-api:latest
         command: ["inventory-api", "migrate"]
         env:
         - name: INVENTORY_API_CONFIG
@@ -56,7 +56,7 @@ spec:
           readOnly: true
       containers:
       - name: inventory-api
-        image: quay.io/redhat-services-prod/project-kessel-tenant/kessel-inventory/inventory-api:f2a8a16
+        image: quay.io/redhat-services-prod/project-kessel-tenant/kessel-inventory/inventory-api:latest
         command: ["inventory-api", "serve"]
         ports:
         - name: grpc
