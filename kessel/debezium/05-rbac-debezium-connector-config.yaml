@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rbac-debezium-connector
+  namespace: rbac-local
+data:
+  rbac-debezium-connector.json: |
+    {
+      "name": "rbac-postgres-connector",
+      "config": {
+        "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+        "database.server.name": "rbac",
+        "database.dbname": "rbac",
+        "database.hostname": "rbac-db.rbac-local.svc.cluster.local",
+        "database.port": "5432",
+        "database.user": "rbacuser",
+        "database.password": "postgres",
+        "topic.prefix": "rbac",
+        "table.whitelist": "public.management_outbox",
+        "table.include.list": "public.management_outbox",
+        "transforms": "outbox",
+        "transforms.outbox.type": "io.debezium.transforms.outbox.EventRouter",
+        "transforms.outbox.table.field.payload": "payload",
+        "transforms.outbox.table.field.event.type": "type",
+        "transforms.outbox.table.expand.json.payload": "true",
+        "transforms.outbox.table.fields.additional.placement": "aggregatetype:header:aggregateType,aggregateid:header:aggregateId",
+        "plugin.name": "pgoutput",
+        "slot.name": "rbac_debezium",
+        "heartbeat.interval.ms": "30000",
+        "heartbeat.action.query": "INSERT INTO heartbeat (status) VALUES (1) ON CONFLICT DO NOTHING",
+        "topic.heartbeat.prefix": "__debezium-heartbeat"
+      }
+    }

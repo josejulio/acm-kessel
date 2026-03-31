@@ -1,0 +1,10 @@
+# Cloned insights-rbac repository
+insights-rbac/
+
+# Documentation generated during sessions
+*.md
+!README.md
+
+# Kubernetes secrets
+*-secret.yaml
+*secret*.yaml

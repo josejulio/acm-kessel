@@ -1,500 +1,305 @@
-# ACM Kessel Deployment
+# Kessel Local Stack Deployment
 
-This directory contains Kubernetes manifests for deploying the Kessel stack (Relations API, Inventory API, SpiceDB, RBAC, and PostgreSQL) into Kubernetes or OpenShift clusters.
+Deploy a complete Kessel stack with RBAC, Inventory, and Relations APIs for local development and testing.
 
-## 🚀 Quick Start (Automated Deployment)
+## Architecture
 
-For vanilla Kubernetes (kind, minikube, k3s, Docker Desktop), use the automated deployment script:
+This deployment provides:
+- **RBAC API** - Role management with Kafka consumer for replication events
+- **Kessel Inventory API** - Resource inventory with Kafka consumer for resource events
+- **Kessel Relations API** - Authorization tuples and permission checks
+- **SpiceDB** - Zanzibar-based authorization storage and evaluation engine
+- **PostgreSQL** - Database for RBAC and Inventory services
+- **Kafka + Debezium** - CDC pipeline from both services to Relations API (simple Zookeeper + Kafka pods in `kafka-dev/`)
+- **Redis** - RBAC caching layer
 
-```bash
-# Deploy entire stack with one command
-./deploy-vanilla-k8s.sh
+## CDC Pipelines
 
-# Later, to clean up everything
-./cleanup-vanilla-k8s.sh
+Both RBAC and Inventory replicate authorization tuples to Kessel Relations API via CDC:
+
+### RBAC → Kessel Relations
+```
+RBAC API → management_outbox table (PostgreSQL)
+  ↓
+Debezium RBAC Connector (outbox pattern with EventRouter)
+  ↓
+Kafka Topics (routed by aggregatetype):
+  - outbox.event.relations-replication-event (relations)
+  - outbox.event.workspace (workspace events)
+  ↓
+RBAC Kafka Consumer (consumes relations topic)
+  ↓
+Kessel Relations API (gRPC)
+  ↓
+SpiceDB (authorization tuples)
 ```
 
-**What the script does:**
-- ✅ Creates namespace (acm-kessel)
-- ✅ Deploys PostgreSQL (dev mode)
-- ✅ Deploys SpiceDB + Operator
-- ✅ Deploys Relations API
-- ✅ Deploys Inventory API
-- ✅ Deploys MBOP (Mock BOP in mock mode)
-- ✅ Deploys RBAC (using public quay.io image)
-- ✅ Waits for all components to be ready
-- ✅ Provides verification commands
+**Note**: The Debezium EventRouter transforms outbox messages into topics using the pattern `outbox.event.<aggregatetype>`. Relations events have `aggregatetype=relations-replication-event`, and workspace events have `aggregatetype=workspace`.
 
-**Deployment time:** ~3-5 minutes
-
-**Verify deployment:**
-```bash
-./smoketest.sh  # Runs 43 comprehensive smoke tests (includes workspace CRUD and principals)
+### Inventory → Kessel Relations
 ```
-
-**Note:** The RBAC deployment uses a default Django secret key. For production, update `rbac/02-rbac-secret.yaml` before deploying.
-
-**For manual deployment or OpenShift**, see the detailed installation steps below.
-
-## Components
-
-The Kessel stack consists of:
-
-1. **Crunchy Data PostgreSQL Operator** - Manages PostgreSQL cluster lifecycle
-2. **PostgreSQL Cluster** - Provides the database backend for the Inventory API
-3. **SpiceDB Operator** - Manages the SpiceDB cluster lifecycle
-4. **SpiceDB Cluster** - Provides the authorization backend for the Relations API
-5. **Relations API** - API for managing authorization relationships backed by SpiceDB
-6. **Inventory API** - API for managing resource inventory, backed by PostgreSQL
+Kessel Inventory API → pg_logical_emit_message (PostgreSQL WAL)
+  ↓
+Debezium Inventory Connector (WAL messages)
+  ↓
+Kafka Topic: outbox.event.kessel.tuples
+  ↓
+Inventory API Consumer
+  ↓
+Kessel Relations API (gRPC)
+  ↓
+SpiceDB (authorization tuples)
+```
 
 ## Prerequisites
 
-**Required:**
-- Kubernetes cluster (1.20+) or OpenShift (4.12+)
-- `kubectl` or `oc` CLI tool
-- Cluster admin privileges (for operator installation)
+- Kubernetes cluster (Minikube, Kind, or other)
+- Docker
+- kubectl
+- git
 
-**Optional (only if deploying PostgreSQL in-cluster):**
-- Operator Lifecycle Manager (OLM)
-  - ✅ OpenShift: Included by default
-  - ⚠️ Vanilla Kubernetes: [Install OLM](https://olm.operatorframework.io/docs/getting-started/) (5 minute setup)
-- Access to OperatorHub or install Crunchy PostgreSQL Operator manually
+**Supported Environments:**
+- ✅ Minikube (auto-detected via context: `minikube`)
+- ✅ Kind (auto-detected via context: `kind-*`)
+- ⚠️ Other clusters: Manual image loading required (see below)
 
-## Directory Structure
-
-```
-acm/
-├── 00-namespace.yaml                              # ACM Kessel namespace
-├── postgres/                                      # PostgreSQL Operator (Crunchy Data) - Production
-│   ├── 01-postgres-operator-namespace.yaml       # Operator namespace
-│   ├── 02-postgres-operator-group.yaml           # Operator group
-│   ├── 03-postgres-operator-subscription.yaml    # Operator subscription
-│   └── 04-postgres-cluster.yaml                  # PostgreSQL cluster instance
-├── postgres-dev/                                  # Simple PostgreSQL - Development only
-│   ├── 01-postgres-dev-secret.yaml               # Database credentials
-│   ├── 02-postgres-dev-pvc.yaml                  # Persistent storage
-│   ├── 03-postgres-dev-deployment.yaml           # PostgreSQL deployment
-│   ├── 04-postgres-dev-service.yaml              # PostgreSQL service
-│   └── README.md                                  # Development PostgreSQL guide
-├── operator/
-│   └── 01-spicedb-operator.yaml                  # SpiceDB operator installation
-├── spicedb/
-│   ├── 02-spicedb-secret.yaml                    # SpiceDB preshared key (MUST BE CHANGED)
-│   └── 03-spicedb-cluster.yaml                   # SpiceDB cluster configuration
-├── relations-api/
-│   ├── 04-relations-api-configmap-schema.yaml    # SpiceDB authorization schema
-│   ├── 05-relations-api-configmap-config.yaml    # Relations API configuration
-│   ├── 06-relations-api-deployment.yaml          # Relations API deployment
-│   └── 07-relations-api-service.yaml             # Relations API service
-├── inventory-api/
-│   ├── 09-inventory-api-configmap-schema-cache.yaml  # Schema cache
-│   ├── 10-inventory-api-secret-config.yaml           # Inventory API configuration
-│   ├── 11-inventory-api-deployment.yaml              # Inventory API deployment
-│   └── 12-inventory-api-service.yaml                 # Inventory API service
-├── config/                                        # Application configuration files
-├── schema/                                        # Schema files
-├── kustomization.yaml                             # Kustomize deployment file
-└── README.md                                      # This file
-```
-
-## Installation
-
-1. Create namespace
-oc apply -f 00-namespace.yaml
-
-### PostgreSQL Options
-
-The Inventory API requires a PostgreSQL database. You have **three options**:
-
-#### Option 1: Bring Your Own PostgreSQL
-
-Use an external PostgreSQL database (AWS RDS, Google Cloud SQL, Azure Database, etc.) or an existing PostgreSQL instance.
-
-**Requirements:**
-- PostgreSQL 14+
-- Database: `inventory`
-- User with `SUPERUSER` privileges (required for migrations)
-
-**Setup:**
-1. Skip the `postgres/` manifests entirely
-2. Create a Kubernetes secret with your database credentials:
-   ```bash
-   oc create secret generic acm-kessel-postgres-pguser-inventoryapi -n acm-kessel \
-     --from-literal=host=your-postgres-host.example.com \
-     --from-literal=port=5432 \
-     --from-literal=user=inventoryapi \
-     --from-literal=password=YOUR_SECURE_PASSWORD \
-     --from-literal=dbname=inventory
-   ```
-3. Continue with the installation steps below (skip Step 2a)
-
-#### Option 2: Deploy PostgreSQL in Cluster
-
-Deploy PostgreSQL using the Crunchy Data PostgreSQL Operator.
-
-**Note:** This option requires **Operator Lifecycle Manager (OLM)**:
-- ✅ OpenShift: OLM included by default
-- ⚠️ Vanilla Kubernetes: Install OLM first ([instructions](https://olm.operatorframework.io/docs/getting-started/))
-
-The operator automatically manages database credentials, backups, and high availability.
-
-#### Option 3: Simple PostgreSQL
-
-Deploy a simple PostgreSQL instance using standard Kubernetes manifests. No OLM required.
-
-**Setup:**
-1. The password is in plaintext in `postgres-dev/01-postgres-dev-secret.yaml`. Update as needed.
-2. Deploy:
-   ```bash
-   kubectl apply -f postgres-dev/
-   ```
-3. Verify:
-   ```bash
-   kubectl get pods -n acm-kessel -l app=acm-kessel-postgres
-   ```
-4. Continue with installation steps below (skip Step 2a)
-
-See `postgres-dev/README.md` for details.
-
-### Step 1: Configure Secrets
-
-You can update the **SpiceDB Preshared Key** (`spicedb/02-spicedb-secret.yaml`) if required:
+## Quick Start
 
 ```bash
-# Generate a random 32-character key:
-openssl rand -base64 32
-
-# Update the preshared_key value in the file
+./deploy-rbac-local.sh
 ```
 
-### Step 2: Deploy the Stack
-
-#### Step 2a: PostgreSQL (Optional - Skip if Using External Database)
-
-**Only if you chose Option 2 (in-cluster PostgreSQL):**
-
-```bash
-# Create PostgreSQL operator namespace
-oc apply -f postgres/01-postgres-operator-namespace.yaml
-
-# Deploy PostgreSQL Operator (Crunchy Data) - Requires OLM
-oc apply -f postgres/02-postgres-operator-group.yaml
-oc apply -f postgres/03-postgres-operator-subscription.yaml
-
-# Wait for the PostgreSQL operator to be ready (this may take a few minutes)
-oc wait --for=condition=available --timeout=600s deployment/pgo -n pgo
-
-# Deploy PostgreSQL Cluster
-oc apply -f postgres/04-postgres-cluster.yaml
-
-# Wait for PostgreSQL to be ready
-oc wait --for=condition=PGBackRestRepoHostReady --timeout=600s postgrescluster/acm-kessel-postgres -n acm-kessel
-```
-
-The operator will automatically create a secret: `acm-kessel-postgres-pguser-inventoryapi`
-
-#### Step 2b: Core Services (Required)
-
-```bash
-# 1. Deploy SpiceDB operator
-oc apply -f operator/01-spicedb-operator.yaml
-
-# Wait for the operator to be ready
-oc wait --for=condition=available --timeout=300s deployment/spicedb-operator -n acm-kessel
-
-# 2. Deploy SpiceDB cluster
-oc apply -f spicedb/
-
-# Wait for SpiceDB to be ready
-oc wait --for=condition=available --timeout=300s deployment/acm-kessel-spicedb-spicedb -n acm-kessel
-
-# 3. Deploy Relations API
-oc apply -f relations-api/
-
-# 4. Deploy Inventory API
-oc apply -f inventory-api/09-inventory-api-configmap-schema-cache.yaml
-oc apply -f inventory-api/10-inventory-api-secret-config.yaml
-oc apply -f inventory-api/11-inventory-api-deployment.yaml
-oc apply -f inventory-api/12-inventory-api-service.yaml
-```
-
-### Step 3: Verify Deployment
-
-Check that all components are running:
-
-```bash
-# Check PostgreSQL operator
-oc get pods -n pgo
-
-# Check PostgreSQL cluster
-oc get postgrescluster -n acm-kessel
-oc get pods -n acm-kessel -l postgres-operator.crunchydata.com/cluster=acm-kessel-postgres
-
-# Check all ACM Kessel pods
-oc get pods -n acm-kessel
-
-# Check services
-oc get svc -n acm-kessel
-
-# Check SpiceDB cluster status
-oc get spicedbcluster -n acm-kessel
-
-# Check deployments
-oc get deployments -n acm-kessel
-```
-
-Expected output should show:
-- PostgreSQL operator deployment in `pgo` namespace
-- PostgreSQL cluster pods (primary + repo-host)
-- SpiceDB operator deployment
-- SpiceDB cluster pods
-- Relations API deployment
-- Inventory API deployment
-
-**Verify PostgreSQL Secret Creation:**
-
-The Crunchy operator automatically creates a secret with database credentials:
-
-```bash
-# Check the auto-generated secret
-oc get secret acm-kessel-postgres-pguser-inventoryapi -n acm-kessel
-
-# View the connection details (base64 encoded)
-oc get secret acm-kessel-postgres-pguser-inventoryapi -n acm-kessel -o yaml
-```
-
-### Step 4: Access the APIs
-
-Port-forward to access the APIs locally:
-
-```bash
-# Relations API
-oc port-forward svc/acm-kessel-relations-api 9200:9000 -n acm-kessel
-
-# Inventory API
-oc port-forward svc/acm-kessel-inventory-api 9100:9000 -n acm-kessel
-```
+The script will:
+1. Clone insights-rbac repository (if not present) from official RedHatInsights repository
+2. Checkout latest master branch
+3. Add fork remote (coderbydesign/insights-rbac) and cherry-pick commit `59606004bfe190b3f2ee33a382258ad0b8279877` on top of master
+4. Build RBAC Docker image
+5. Auto-detect your Kubernetes environment (Minikube/Kind) and load the image
+6. Deploy all components in order
+7. Run migrations and seed data
+8. Provision test data (3 test organizations)
 
 ## Configuration
 
-### SpiceDB Datastore
-
-By default, SpiceDB is configured to use in-memory storage (`datastoreEngine: memory`). For production use, configure it to use PostgreSQL:
-
-1. Update `spicedb/03-spicedb-cluster.yaml`:
-   ```yaml
-   spec:
-     config:
-       datastoreEngine: postgres
-   ```
-
-2. Create a secret with PostgreSQL connection details for SpiceDB (separate from the Inventory API database)
-
-### Image Versions
-
-The manifests use the following default images:
-
-- Relations API: `quay.io/redhat-services-prod/project-kessel-tenant/kessel-relations/relations-api:latest`
-- Inventory API: `quay.io/redhat-services-prod/project-kessel-tenant/kessel-inventory/inventory-api:latest`
-
-Update the image tags in the deployment files as needed for your environment.
-
-### Scaling
-
-To scale the APIs, update the `replicas` field in the deployment manifests:
+Edit `deploy-rbac-local.sh` to customize:
 
 ```bash
-# Scale Relations API
-oc scale deployment acm-kessel-relations-api --replicas=3 -n acm-kessel
-
-# Scale Inventory API
-oc scale deployment acm-kessel-inventory-api --replicas=3 -n acm-kessel
+NAMESPACE="rbac-local"
+RBAC_REPO_URL="https://github.com/RedHatInsights/insights-rbac.git"
+RBAC_BRANCH="master"
+RBAC_FORK_URL="https://github.com/coderbydesign/insights-rbac.git"
+RBAC_CHERRY_PICK_COMMIT="59606004bfe190b3f2ee33a382258ad0b8279877"
 ```
 
-## PostgreSQL Configuration (Crunchy Data Operator)
+**Note**: The fork URL is used to fetch the cherry-pick commit. The script automatically detects whether you're using Minikube or Kind and loads the Docker image accordingly.
 
-The deployment uses the **Crunchy Data PostgreSQL Operator** for database management. The operator is installed via OpenShift OperatorHub and provides enterprise-grade PostgreSQL with high availability, backup/restore, and monitoring capabilities.
+### Manual Image Loading (for unsupported clusters)
 
-### PostgreSQL Cluster Configuration
+If the script cannot auto-detect your Kubernetes environment, it will **fail** with instructions. To proceed:
 
-The PostgreSQL cluster is defined in `postgres/04-postgres-cluster.yaml`. Key configuration options:
-
-**Storage:**
-```yaml
-dataVolumeClaimSpec:
-  resources:
-    requests:
-      storage: 10Gi  # Adjust for production needs
-```
-
-**Replicas (High Availability):**
-```yaml
-instances:
-  - name: instance1
-    replicas: 1  # Set to 2 or more for HA
-```
-
-**Resource Limits:**
-```yaml
-resources:
-  requests:
-    cpu: 100m
-    memory: 256Mi
-  limits:
-    cpu: 1000m
-    memory: 1Gi
-```
-
-**Backups:**
-```yaml
-backups:
-  pgbackrest:
-    repos:
-    - name: repo1
-      volume:
-        volumeClaimSpec:
-          resources:
-            requests:
-              storage: 10Gi  # Backup storage size
-```
-
-### Connecting to PostgreSQL (In-Cluster Deployment Only)
-
-If you deployed PostgreSQL in-cluster using the Crunchy operator, you can connect to it for debugging:
+1. Manually load the image into your cluster
+2. Re-run with `SKIP_IMAGE_LOAD=true`:
 
 ```bash
-# Port-forward to PostgreSQL
-oc port-forward -n acm-kessel svc/acm-kessel-postgres-primary 5432:5432
-
-# Connect with psql
-PGPASSWORD=$(oc get secret acm-kessel-postgres-pguser-inventoryapi -n acm-kessel -o jsonpath='{.data.password}' | base64 -d) \
-psql -h localhost -U inventoryapi -d inventory
+# Example for unknown cluster type
+docker save insights-rbac:local | your-cluster-load-command
+SKIP_IMAGE_LOAD=true ./deploy-rbac-local.sh
 ```
 
-## Bootstrap SpiceDB with Initial Data
+## Test Data
 
-After deployment, you can bootstrap SpiceDB with initial authorization relationships.
+The deployment provisions 3 test organizations:
 
-Install [grpcurl](https://github.com/fullstorydev/grpcurl) and run:
+| Org ID | Account | Users |
+|--------|---------|-------|
+| test_org_01 | acct_01 | org_admin_test_org_01 (100001), regular_user_test_org_01 (100002), readonly_user_test_org_01 (100003) |
+| test_org_02 | acct_02 | org_admin_test_org_02 (100101), regular_user_test_org_02 (100102), readonly_user_test_org_02 (100103) |
+| test_org_03 | acct_03 | org_admin_test_org_03 (100201), regular_user_test_org_03 (100202), readonly_user_test_org_03 (100203) |
+
+## Testing
+
+### Port Forward Services
 
 ```bash
-# Port-forward to relations-api
-oc port-forward svc/acm-kessel-relations-api 9200:9000 -n acm-kessel
+# RBAC API (role management)
+kubectl port-forward svc/rbac-server 8080:8080 -n rbac-local
 
-# Create sample relationships
-grpcurl -plaintext -d '{
-  "upsert": true,
-  "tuples": [
-    {
-      "resource": {
-        "type": {"namespace": "rbac", "name": "workspace"},
-        "id": "my-workspace"
-      },
-      "relation": "t_binding",
-      "subject": {
-        "subject": {
-          "type": {"namespace": "rbac", "name": "role_binding"},
-          "id": "binding1"
-        }
-      }
-    },
-    {
-      "resource": {
-        "type": {"namespace": "rbac", "name": "role_binding"},
-        "id": "binding1"
-      },
-      "relation": "t_subject",
-      "subject": {
-        "subject": {
-          "type": {"namespace": "rbac", "name": "principal"},
-          "id": "redhat/user123"
-        }
-      }
-    },
-    {
-      "resource": {
-        "type": {"namespace": "rbac", "name": "role_binding"},
-        "id": "binding1"
-      },
-      "relation": "t_role",
-      "subject": {
-        "subject": {
-          "type": {"namespace": "rbac", "name": "role"},
-          "id": "admin"
-        }
-      }
-    },
-    {
-      "resource": {
-        "type": {"namespace": "rbac", "name": "role"},
-        "id": "admin"
-      },
-      "relation": "t_regional_cluster_cluster_create",
-      "subject": {
-        "subject": {
-          "type": {"namespace": "rbac", "name": "principal"},
-          "id": "*"
-        }
-      }
-    }
-  ]
-}' localhost:9200 kessel.relations.v1beta1.KesselTupleService/CreateTuples
+# Kessel Inventory API (resources and workspaces)
+kubectl port-forward svc/acm-kessel-inventory-api 8000:8000 -n rbac-local
 
-# Verify the permission
-grpcurl -plaintext -d '{
-  "resource": {
-    "type": {"namespace": "rbac", "name": "workspace"},
-    "id": "my-workspace"
-  },
-  "relation": "regional_cluster_cluster_create",
-  "subject": {
-    "subject": {
-      "type": {"namespace": "rbac", "name": "principal"},
-      "id": "redhat/user123"
-    }
-  }
-}' localhost:9200 kessel.relations.v1beta1.KesselCheckService/Check
+# Kessel Relations API (authorization checks)
+kubectl port-forward svc/acm-kessel-relations-api 9000:9000 -n rbac-local
 ```
+
+### Test RBAC API (Dev Mode)
+
+The RBAC API runs in dev mode with header-based authentication:
+
+```bash
+# Status check
+curl http://localhost:8080/api/rbac/v1/status/
+
+# List roles
+curl http://localhost:8080/api/rbac/v1/roles/
+
+# As org admin
+curl -H 'X-Dev-Org-Id: test_org_01' \
+     -H 'X-Dev-Username: org_admin_test_org_01' \
+     http://localhost:8080/api/rbac/v1/roles/
+
+# As non-admin
+curl -H 'X-Dev-Org-Id: test_org_02' \
+     -H 'X-Dev-Username: regular_user_test_org_02' \
+     -H 'X-Dev-Is-Org-Admin: false' \
+     http://localhost:8080/api/rbac/v1/access/?application=rbac
+```
+
+## Custom Roles
+
+The deployment uses custom role definitions instead of built-in ones:
+
+- **ACM Administrator** - Full ACM cluster access
+- **User Access administrator** - Full RBAC permissions
+- **User Access principal viewer** - Read-only principal access
+
+Role definitions: `rbac/roles-configmap.yaml`
+Permission definitions: `rbac/permissions-configmap.yaml`
+
+## Security Notes
+
+All secrets in this deployment use placeholder values (e.g., `CHANGE_ME_REPLACE_WITH_RANDOM_KEY`) suitable for local development only. These are **not** production secrets and are safe to check into version control for local testing.
+
+For production deployments, you must:
+- Generate proper random keys: `openssl rand -base64 32`
+- Use proper Kubernetes secret management
+- Never commit real secrets to version control
+
+## Cleanup
+
+```bash
+kubectl delete namespace rbac-local
+```
+
+This will remove all deployed resources. The cloned `insights-rbac/` directory will remain (it's in .gitignore) for faster subsequent deployments.
 
 ## Troubleshooting
 
-### Check Pod Logs
+### Check Deployment Status
 
 ```bash
-# PostgreSQL operator logs
-oc logs -f deployment/pgo -n pgo
-
-# PostgreSQL cluster logs
-oc logs -f -n acm-kessel -l postgres-operator.crunchydata.com/cluster=acm-kessel-postgres
-
-# Relations API logs
-oc logs -f deployment/acm-kessel-relations-api -n acm-kessel
-
-# Inventory API logs
-oc logs -f deployment/acm-kessel-inventory-api -n acm-kessel
-
-# SpiceDB operator logs
-oc logs -f deployment/spicedb-operator -n acm-kessel
+kubectl get pods -n rbac-local
+kubectl get deployments -n rbac-local
+kubectl get jobs -n rbac-local
 ```
 
-## Uninstall
+### Common Issues
 
-To remove the entire stack:
+#### Image Pull Errors
+If deployments show `ImagePullBackOff` for the RBAC image, the Docker image was not loaded into your cluster.
+
+**For auto-detected environments (Minikube/Kind):** This shouldn't happen. Check script output for image loading errors.
+
+**For manual environments:**
+```bash
+# 1. Load the image
+minikube image load insights-rbac:local  # or your cluster's command
+
+# 2. Delete the failing pod to retry
+kubectl delete pod -n rbac-local <pod-name>
+```
+
+#### Init Job Failures
+If the init job fails, check the logs for database connection or migration errors:
 
 ```bash
-# Delete ACM Kessel resources
-oc delete -f inventory-api/
-oc delete -f relations-api/
-oc delete -f spicedb/
-oc delete -f postgres/04-postgres-cluster.yaml
-
-# Delete the namespace
-oc delete namespace acm-kessel
-
-# Optionally, uninstall the operators
-oc delete -f postgres/03-postgres-operator-subscription.yaml
-oc delete -f postgres/02-postgres-operator-group.yaml
-oc delete namespace pgo
-
-oc delete -f operator/01-spicedb-operator.yaml
+kubectl logs -n rbac-local job/rbac-init
 ```
+
+Common causes:
+- PostgreSQL not ready (wait a few seconds and the job will retry)
+- Migration conflicts (delete the namespace and redeploy from scratch)
+
+#### Debezium Connector Failures
+If Debezium connectors fail to start, check:
+
+```bash
+# View Debezium logs
+kubectl logs -n rbac-local deployment/acm-kessel-debezium
+
+# Check connector status via API
+kubectl port-forward svc/acm-kessel-debezium 8083:8083 -n rbac-local
+curl http://localhost:8083/connectors
+curl http://localhost:8083/connectors/acm-kessel-inventory/status
+curl http://localhost:8083/connectors/rbac-outbox/status
+```
+
+### View Logs
+
+```bash
+# RBAC API
+kubectl logs -n rbac-local deployment/rbac-server
+
+# RBAC Kafka Consumer (RBAC → Relations replication)
+kubectl logs -n rbac-local deployment/rbac-kafka-consumer
+
+# Kessel Inventory API
+kubectl logs -n rbac-local deployment/acm-kessel-inventory-api
+
+# Kessel Relations API (SpiceDB)
+kubectl logs -n rbac-local deployment/acm-kessel-relations-api
+
+# RBAC Init Job (migrations + seeding)
+kubectl logs -n rbac-local job/rbac-init
+```
+
+### Check Kafka Topics
+
+```bash
+kubectl exec -n rbac-local deployment/rbac-local-kafka -- \
+  kafka-topics --bootstrap-server localhost:9092 --list
+
+kubectl exec -n rbac-local deployment/rbac-local-kafka -- \
+  kafka-consumer-groups --bootstrap-server localhost:9092 --list
+```
+
+### Check Consumer Status
+
+```bash
+# RBAC consumer
+kubectl exec -n rbac-local deployment/rbac-local-kafka -- \
+  kafka-consumer-groups --bootstrap-server localhost:9092 \
+  --describe --group rbac-consumer-group
+
+# Inventory consumer
+kubectl exec -n rbac-local deployment/rbac-local-kafka -- \
+  kafka-consumer-groups --bootstrap-server localhost:9092 \
+  --describe --group inventory-consumer
+```
+
+## Kafka Topics
+
+The deployment uses Debezium's EventRouter transform which routes outbox messages by `aggregatetype`:
+
+### RBAC → Kessel Relations
+- `outbox.event.relations-replication-event` - RBAC relations replication events (roles, groups, bindings)
+- `outbox.event.workspace` - Workspace lifecycle events (create/update/delete)
+
+### Kessel Inventory → Kessel Relations
+- `outbox.event.kessel.tuples` - Resource authorization tuples
+- `outbox.event.kessel.resources` - Resource metadata events
+
+### System Topics
+- `__debezium-heartbeat.rbac` - Debezium heartbeat for RBAC connector
+- `__debezium-heartbeat.kessel-inventory` - Debezium heartbeat for Inventory connector
+
+## Architecture Decisions
+
+1. **Kessel Authorization**: Complete Kessel stack with RBAC and Inventory both replicating to Relations API (SpiceDB) for unified authorization checks based on Google Zanzibar model
+2. **EventRouter Topic Pattern**: Debezium EventRouter routes outbox messages to topics using `outbox.event.<aggregatetype>` pattern, allowing multiple event types from the same outbox table to be routed to different Kafka topics
+3. **Separate Event Streams**: RBAC relations events and workspace events use different topics (`outbox.event.relations-replication-event` and `outbox.event.workspace`) to enable independent consumption and processing
+4. **Dual CDC Patterns**:
+   - RBAC uses **outbox pattern** (management_outbox table)
+   - Inventory uses **WAL messages** (pg_logical_emit_message)
+5. **Custom Role Definitions**: Only ACM and RBAC roles are seeded to avoid unused services
+6. **SUPERUSER for CDC**: PostgreSQL users need SUPERUSER to create publications for Debezium
+7. **Cherry-picked Commit**: Uses commit `59606004bfe190b3f2ee33a382258ad0b8279877` on top of latest master for group#member tuple generation fix

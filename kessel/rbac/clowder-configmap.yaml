@@ -1,0 +1,30 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rbac-clowder-config
+  namespace: rbac-local
+  labels:
+    app.kubernetes.io/name: rbac
+    app.kubernetes.io/component: kafka-consumer
+    app.kubernetes.io/part-of: acm-rbac
+data:
+  clowder-config.json: |
+    {
+      "metricsPort": 9000,
+      "metricsPath": "/metrics",
+      "kafka": {
+        "brokers": [
+          {
+            "hostname": "rbac-local-kafka.rbac-local.svc.cluster.local",
+            "port": 9092
+          }
+        ],
+        "topics": [
+          {
+            "name": "rbac-consumer-replication-event",
+            "requestedName": "rbac-consumer-replication-event"
+          }
+        ]
+      }
+    }

@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rbac-role-permissions
+  namespace: rbac-local
+data:
+  acm.json: |
+    {
+      "k8s_cluster": [
+        {
+          "verb": "read"
+        },
+        {
+          "verb": "write"
+        },
+        {
+          "verb": "create"
+        }
+      ]
+    }

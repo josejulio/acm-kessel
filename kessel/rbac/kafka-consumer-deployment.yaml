@@ -1,0 +1,71 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rbac-kafka-consumer
+  namespace: rbac-local
+  labels:
+    app.kubernetes.io/name: rbac
+    app.kubernetes.io/component: kafka-consumer
+    app.kubernetes.io/part-of: acm-rbac
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rbac-kafka-consumer
+  template:
+    metadata:
+      labels:
+        app: rbac-kafka-consumer
+        app.kubernetes.io/name: rbac
+        app.kubernetes.io/component: kafka-consumer
+        app.kubernetes.io/part-of: acm-rbac
+    spec:
+      containers:
+      - name: rbac-kafka-consumer
+        image: quay.io/cloudservices/rbac:latest
+        imagePullPolicy: Always
+        # Launch the Kafka consumer management command
+        command: ["/bin/bash", "-c"]
+        args:
+        - |
+          cd /opt/rbac/rbac
+          python manage.py launch-rbac-kafka-consumer
+
+        # Kafka consumer specific config
+        env:
+        - name: RBAC_KAFKA_CONSUMER_GROUP_ID
+          value: "rbac-consumer-group"
+        - name: RBAC_KAFKA_CONSUMER_TOPIC
+          value: "outbox.event.relations-replication-event"
+        - name: DJANGO_SECRET_KEY
+          value: "dev-secret-key-not-for-production"
+        # ACG_CONFIG points to Clowder config file (required for app_common_python)
+        - name: ACG_CONFIG
+          value: "/opt/clowder-config/clowder-config.json"
+
+        # All other configuration from ConfigMap (includes database, kafka, etc.)
+        envFrom:
+        - configMapRef:
+            name: rbac-config
+
+        volumeMounts:
+        - name: clowder-config
+          mountPath: /opt/clowder-config
+          readOnly: true
+
+        resources:
+          requests:
+            cpu: 100m
+            memory: 300Mi
+          limits:
+            cpu: 500m
+            memory: 300Mi
+
+        # Health probes disabled - consumer process doesn't respond to Django management commands
+        # The consumer has internal health monitoring via the health check thread
+
+      volumes:
+      - name: clowder-config
+        configMap:
+          name: rbac-clowder-config

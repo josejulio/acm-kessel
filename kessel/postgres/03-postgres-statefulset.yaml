@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: rbac-db
+  namespace: rbac-local
+spec:
+  serviceName: rbac-db
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rbac-db
+  template:
+    metadata:
+      labels:
+        app: rbac-db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: "postgres"
+            - name: POSTGRES_USER
+              value: "postgres"
+            - name: POSTGRES_PASSWORD
+              value: "postgres"
+            - name: PGDATA
+              value: "/var/lib/postgresql/data/pgdata"
+          # Enable logical replication for Debezium CDC (Inventory)
+          args:
+            - "-c"
+            - "wal_level=logical"
+            - "-c"
+            - "max_wal_senders=10"
+            - "-c"
+            - "max_replication_slots=10"
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: pg-data
+              mountPath: /var/lib/postgresql/data
+            - name: init-scripts
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+      volumes:
+        - name: init-scripts
+          configMap:
+            name: postgres-init-scripts
+            defaultMode: 0755
+  volumeClaimTemplates:
+    - metadata:
+        name: pg-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi

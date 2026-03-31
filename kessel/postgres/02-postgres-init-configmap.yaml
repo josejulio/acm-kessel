@@ -1,0 +1,70 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init-scripts
+  namespace: rbac-local
+data:
+  init-databases.sh: |
+    #!/bin/bash
+    set -e
+
+    # Create RBAC database and user
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
+        -- Create RBAC user if it doesn't exist
+        DO \$\$
+        BEGIN
+          IF NOT EXISTS (SELECT FROM pg_user WHERE usename = 'rbacuser') THEN
+            CREATE USER rbacuser WITH PASSWORD 'postgres';
+          END IF;
+        END
+        \$\$;
+
+        -- Grant Debezium required permissions (REPLICATION for WAL, SUPERUSER for publication)
+        ALTER USER rbacuser WITH REPLICATION;
+        ALTER USER rbacuser WITH SUPERUSER;
+
+        -- Create RBAC database if it doesn't exist
+        SELECT 'CREATE DATABASE rbac OWNER rbacuser'
+        WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'rbac')\gexec
+
+        -- Grant privileges
+        GRANT ALL PRIVILEGES ON DATABASE rbac TO rbacuser;
+    EOSQL
+
+    # Connect to RBAC database and create heartbeat table for Debezium
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname=rbac <<-EOSQL
+        -- Create heartbeat table for Debezium (needed for RBAC outbox connector)
+        CREATE TABLE IF NOT EXISTS heartbeat (
+          id SERIAL PRIMARY KEY,
+          status INTEGER NOT NULL,
+          created_at TIMESTAMP DEFAULT NOW()
+        );
+
+        GRANT ALL PRIVILEGES ON TABLE heartbeat TO rbacuser;
+        GRANT ALL PRIVILEGES ON SEQUENCE heartbeat_id_seq TO rbacuser;
+    EOSQL
+
+    # Back to postgres database for remaining setup
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
+        -- Create Inventory user if it doesn't exist
+        DO \$\$
+        BEGIN
+          IF NOT EXISTS (SELECT FROM pg_user WHERE usename = 'inventoryapi') THEN
+            CREATE USER inventoryapi WITH PASSWORD 'postgres';
+          END IF;
+        END
+        \$\$;
+
+        -- Grant Debezium required permissions (REPLICATION for WAL, SUPERUSER for publication)
+        ALTER USER inventoryapi WITH REPLICATION;
+        ALTER USER inventoryapi WITH SUPERUSER;
+
+        -- Create Inventory database if it doesn't exist
+        SELECT 'CREATE DATABASE inventory OWNER inventoryapi'
+        WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'inventory')\gexec
+
+        -- Grant privileges
+        GRANT ALL PRIVILEGES ON DATABASE inventory TO inventoryapi;
+    EOSQL
+
+    echo "RBAC and Inventory databases created successfully"

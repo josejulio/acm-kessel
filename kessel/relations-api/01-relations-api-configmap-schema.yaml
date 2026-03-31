@@ -1,0 +1,229 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: acm-kessel-spicedb-schema
+  namespace: rbac-local
+data:
+  schema.zed: |
+    definition acm/k8s_cluster {
+      permission binding = t_binding
+      relation t_binding: rbac/role_binding
+      permission edit = t_binding->acm_cluster_edit + t_workspace->acm_cluster_edit
+      permission new = t_binding->acm_cluster_new + t_workspace->acm_cluster_new
+      permission view = t_binding->acm_cluster_view + t_workspace->acm_cluster_view
+      permission workspace = t_workspace
+      relation t_workspace: rbac/workspace
+    }
+
+    definition kessel/lock {
+    	permission version = t_version
+    	relation t_version: kessel/lockversion
+    }
+  
+    definition kessel/lockversion {}
+      
+    definition rbac/group {
+        permission member = t_member
+        relation t_member: rbac/principal | rbac/group#member
+        permission owner = t_owner
+        relation t_owner: rbac/tenant
+    }
+  
+    definition rbac/platform {
+      permission acm_cluster_edit = t_binding->acm_cluster_edit
+      permission acm_cluster_new = t_binding->acm_cluster_new
+      permission acm_cluster_view = t_binding->acm_cluster_view
+      permission binding = t_binding
+      relation t_binding: rbac/role_binding
+      permission rbac_assignments_read = t_binding->rbac_assignments_read
+      permission rbac_assignments_write = t_binding->rbac_assignments_write
+      permission rbac_groups_read = t_binding->rbac_groups_read
+      permission rbac_groups_write = t_binding->rbac_groups_write
+      permission rbac_principal_read = t_binding->rbac_principal_read
+      permission rbac_roles_read = t_binding->rbac_roles_read
+      permission rbac_roles_write = t_binding->rbac_roles_write
+      permission rbac_workspace_create = t_binding->rbac_workspace_create
+      permission rbac_workspace_delete = t_binding->rbac_workspace_delete
+      permission rbac_workspace_edit = t_binding->rbac_workspace_edit
+      permission rbac_workspace_move = t_binding->rbac_workspace_move
+      permission rbac_workspace_view = t_binding->rbac_workspace_view
+      permission rbac_workspaces_role_binding_grant = t_binding->rbac_workspaces_role_binding_grant
+      permission rbac_workspaces_role_binding_revoke = t_binding->rbac_workspaces_role_binding_revoke
+      permission rbac_workspaces_role_binding_view = t_binding->rbac_workspaces_role_binding_view
+    }
+  
+    definition rbac/principal {}
+      
+    definition rbac/role {
+      permission acm_all_all = t_acm_all_all
+      relation t_acm_all_all: rbac/principal:*
+      permission acm_all_create = t_acm_all_create
+      relation t_acm_all_create: rbac/principal:*
+      permission acm_all_read = t_acm_all_read
+      relation t_acm_all_read: rbac/principal:*
+      permission acm_all_write = t_acm_all_write
+      relation t_acm_all_write: rbac/principal:*
+      permission acm_cluster_edit = acm_k8s_cluster_write + acm_k8s_cluster_all + acm_all_write + acm_all_all + all_all_all + t_child->acm_cluster_edit
+      permission acm_cluster_new = acm_k8s_cluster_create + acm_k8s_cluster_all + acm_all_create + acm_all_all + all_all_all + t_child->acm_cluster_new
+      permission acm_cluster_view = acm_k8s_cluster_read + acm_k8s_cluster_all + acm_all_read + acm_all_all + all_all_all + t_child->acm_cluster_view
+      permission acm_k8s_cluster_all = t_acm_k8s_cluster_all
+      relation t_acm_k8s_cluster_all: rbac/principal:*
+      permission acm_k8s_cluster_create = t_acm_k8s_cluster_create
+      relation t_acm_k8s_cluster_create: rbac/principal:*
+      permission acm_k8s_cluster_read = t_acm_k8s_cluster_read
+      relation t_acm_k8s_cluster_read: rbac/principal:*
+      permission acm_k8s_cluster_write = t_acm_k8s_cluster_write
+      relation t_acm_k8s_cluster_write: rbac/principal:*
+      permission all_all_all = t_all_all_all
+      relation t_all_all_all: rbac/principal:*
+      permission child = t_child
+      relation t_child: rbac/role
+      permission config_manager_state_changes_read = t_config_manager_state_changes_read
+      relation t_config_manager_state_changes_read: rbac/principal:*
+      permission config_manager_state_read = t_config_manager_state_read
+      relation t_config_manager_state_read: rbac/principal:*
+      permission config_manager_state_write = t_config_manager_state_write
+      relation t_config_manager_state_write: rbac/principal:*
+      permission inventory_all_all = t_inventory_all_all
+      relation t_inventory_all_all: rbac/principal:*
+      permission inventory_all_read = t_inventory_all_read
+      relation t_inventory_all_read: rbac/principal:*
+      permission inventory_all_write = t_inventory_all_write
+      relation t_inventory_all_write: rbac/principal:*
+      permission inventory_groups_all = t_inventory_groups_all
+      relation t_inventory_groups_all: rbac/principal:*
+      permission inventory_groups_read = t_inventory_groups_read
+      relation t_inventory_groups_read: rbac/principal:*
+      permission inventory_groups_write = t_inventory_groups_write
+      relation t_inventory_groups_write: rbac/principal:*
+      permission rbac_all_all = t_rbac_all_all
+      relation t_rbac_all_all: rbac/principal:*
+      permission rbac_all_read = t_rbac_all_read
+      relation t_rbac_all_read: rbac/principal:*
+      permission rbac_all_role_binding_grant = t_rbac_all_role_binding_grant
+      relation t_rbac_all_role_binding_grant: rbac/principal:*
+      permission rbac_all_role_binding_revoke = t_rbac_all_role_binding_revoke
+      relation t_rbac_all_role_binding_revoke: rbac/principal:*
+      permission rbac_all_role_binding_view = t_rbac_all_role_binding_view
+      relation t_rbac_all_role_binding_view: rbac/principal:*
+      permission rbac_all_write = t_rbac_all_write
+      relation t_rbac_all_write: rbac/principal:*
+      permission rbac_assignments_all = t_rbac_assignments_all
+      relation t_rbac_assignments_all: rbac/principal:*
+      permission rbac_assignments_read = t_rbac_assignments_read + rbac_assignments_all + rbac_all_read + rbac_all_all + all_all_all + t_child->rbac_assignments_read
+      relation t_rbac_assignments_read: rbac/principal:*
+      permission rbac_assignments_write = t_rbac_assignments_write + rbac_assignments_all + rbac_all_write + rbac_all_all + all_all_all + t_child->rbac_assignments_write
+      relation t_rbac_assignments_write: rbac/principal:*
+      permission rbac_groups_all = t_rbac_groups_all
+      relation t_rbac_groups_all: rbac/principal:*
+      permission rbac_groups_read = t_rbac_groups_read + rbac_groups_all + rbac_all_read + rbac_all_all + all_all_all + t_child->rbac_groups_read
+      relation t_rbac_groups_read: rbac/principal:*
+      permission rbac_groups_write = t_rbac_groups_write + rbac_groups_all + rbac_all_write + rbac_all_all + all_all_all + t_child->rbac_groups_write
+      relation t_rbac_groups_write: rbac/principal:*
+      permission rbac_principal_all = t_rbac_principal_all
+      relation t_rbac_principal_all: rbac/principal:*
+      permission rbac_principal_read = t_rbac_principal_read + rbac_principal_all + rbac_all_read + rbac_all_all + all_all_all + t_child->rbac_principal_read
+      relation t_rbac_principal_read: rbac/principal:*
+      permission rbac_roles_all = t_rbac_roles_all
+      relation t_rbac_roles_all: rbac/principal:*
+      permission rbac_roles_read = t_rbac_roles_read + rbac_roles_all + rbac_all_read + rbac_all_all + all_all_all + t_child->rbac_roles_read
+      relation t_rbac_roles_read: rbac/principal:*
+      permission rbac_roles_write = t_rbac_roles_write + rbac_roles_all + rbac_all_write + rbac_all_all + all_all_all + t_child->rbac_roles_write
+      relation t_rbac_roles_write: rbac/principal:*
+      permission rbac_workspace_create = inventory_groups_write + inventory_groups_all + inventory_all_write + inventory_all_all + all_all_all + t_child->rbac_workspace_create
+      permission rbac_workspace_delete = inventory_groups_write + inventory_groups_all + inventory_all_write + inventory_all_all + all_all_all + t_child->rbac_workspace_delete
+      permission rbac_workspace_edit = inventory_groups_write + inventory_groups_all + inventory_all_write + inventory_all_all + all_all_all + t_child->rbac_workspace_edit
+      permission rbac_workspace_move = inventory_groups_write + inventory_groups_all + inventory_all_write + inventory_all_all + all_all_all + t_child->rbac_workspace_move
+      permission rbac_workspace_view = inventory_groups_read + inventory_groups_all + inventory_all_read + inventory_all_all + all_all_all + t_child->rbac_workspace_view
+      permission rbac_workspaces_all = t_rbac_workspaces_all
+      relation t_rbac_workspaces_all: rbac/principal:*
+      permission rbac_workspaces_role_binding_grant = t_rbac_workspaces_role_binding_grant + rbac_workspaces_all + rbac_all_role_binding_grant + rbac_all_all + all_all_all + t_child->rbac_workspaces_role_binding_grant
+      relation t_rbac_workspaces_role_binding_grant: rbac/principal:*
+      permission rbac_workspaces_role_binding_revoke = t_rbac_workspaces_role_binding_revoke + rbac_workspaces_all + rbac_all_role_binding_revoke + rbac_all_all + all_all_all + t_child->rbac_workspaces_role_binding_revoke
+      relation t_rbac_workspaces_role_binding_revoke: rbac/principal:*
+      permission rbac_workspaces_role_binding_view = t_rbac_workspaces_role_binding_view + rbac_workspaces_all + rbac_all_role_binding_view + rbac_all_all + all_all_all + t_child->rbac_workspaces_role_binding_view
+      relation t_rbac_workspaces_role_binding_view: rbac/principal:*
+    }
+  
+    definition rbac/role_binding {
+      permission acm_cluster_edit = (subject & t_role->acm_cluster_edit)
+      permission acm_cluster_new = (subject & t_role->acm_cluster_new)
+      permission acm_cluster_view = (subject & t_role->acm_cluster_view)
+      permission rbac_assignments_read = (subject & t_role->rbac_assignments_read)
+      permission rbac_assignments_write = (subject & t_role->rbac_assignments_write)
+      permission rbac_groups_read = (subject & t_role->rbac_groups_read)
+      permission rbac_groups_write = (subject & t_role->rbac_groups_write)
+      permission rbac_principal_read = (subject & t_role->rbac_principal_read)
+      permission rbac_roles_read = (subject & t_role->rbac_roles_read)
+      permission rbac_roles_write = (subject & t_role->rbac_roles_write)
+      permission rbac_workspace_create = (subject & t_role->rbac_workspace_create)
+      permission rbac_workspace_delete = (subject & t_role->rbac_workspace_delete)
+      permission rbac_workspace_edit = (subject & t_role->rbac_workspace_edit)
+      permission rbac_workspace_move = (subject & t_role->rbac_workspace_move)
+      permission rbac_workspace_view = (subject & t_role->rbac_workspace_view)
+      permission rbac_workspaces_role_binding_grant = (subject & t_role->rbac_workspaces_role_binding_grant)
+      permission rbac_workspaces_role_binding_revoke = (subject & t_role->rbac_workspaces_role_binding_revoke)
+      permission rbac_workspaces_role_binding_view = (subject & t_role->rbac_workspaces_role_binding_view)
+      permission role = t_role
+      relation t_role: rbac/role
+      permission subject = t_subject
+      relation t_subject: rbac/principal | rbac/group#member
+    }
+  
+    definition rbac/tenant {
+      permission acm_cluster_edit = t_binding->acm_cluster_edit + t_platform->acm_cluster_edit
+      permission acm_cluster_new = t_binding->acm_cluster_new + t_platform->acm_cluster_new
+      permission acm_cluster_view = t_binding->acm_cluster_view + t_platform->acm_cluster_view
+      permission binding = t_binding
+      relation t_binding: rbac/role_binding
+      permission platform = t_platform
+      relation t_platform: rbac/platform
+      permission rbac_assignments_read = t_binding->rbac_assignments_read + t_platform->rbac_assignments_read
+      permission rbac_assignments_write = t_binding->rbac_assignments_write + t_platform->rbac_assignments_write
+      permission rbac_groups_read = t_binding->rbac_groups_read + t_platform->rbac_groups_read
+      permission rbac_groups_write = t_binding->rbac_groups_write + t_platform->rbac_groups_write
+      permission rbac_principal_read = t_binding->rbac_principal_read + t_platform->rbac_principal_read
+      permission rbac_roles_read = t_binding->rbac_roles_read + t_platform->rbac_roles_read
+      permission rbac_roles_write = t_binding->rbac_roles_write + t_platform->rbac_roles_write
+      permission rbac_workspace_create = t_binding->rbac_workspace_create + t_platform->rbac_workspace_create
+      permission rbac_workspace_delete = t_binding->rbac_workspace_delete + t_platform->rbac_workspace_delete
+      permission rbac_workspace_edit = t_binding->rbac_workspace_edit + t_platform->rbac_workspace_edit
+      permission rbac_workspace_move = t_binding->rbac_workspace_move + t_platform->rbac_workspace_move
+      permission rbac_workspace_view = t_binding->rbac_workspace_view + t_platform->rbac_workspace_view
+      permission rbac_workspaces_role_binding_grant = t_binding->rbac_workspaces_role_binding_grant + t_platform->rbac_workspaces_role_binding_grant
+      permission rbac_workspaces_role_binding_revoke = t_binding->rbac_workspaces_role_binding_revoke + t_platform->rbac_workspaces_role_binding_revoke
+      permission rbac_workspaces_role_binding_view = t_binding->rbac_workspaces_role_binding_view + t_platform->rbac_workspaces_role_binding_view
+    }
+  
+    definition rbac/workspace {
+      permission acm_cluster_edit = t_binding->acm_cluster_edit + t_parent->acm_cluster_edit
+      permission acm_cluster_new = t_binding->acm_cluster_new + t_parent->acm_cluster_new
+      permission acm_cluster_view = t_binding->acm_cluster_view + t_parent->acm_cluster_view
+      permission binding = t_binding + t_parent->binding
+      relation t_binding: rbac/role_binding
+      permission create = rbac_workspace_create
+      permission delete = rbac_workspace_delete
+      permission edit = rbac_workspace_edit
+      permission move = rbac_workspace_move
+      permission parent = t_parent
+      relation t_parent: rbac/workspace | rbac/tenant
+      permission rbac_assignments_read = t_binding->rbac_assignments_read + t_parent->rbac_assignments_read
+      permission rbac_assignments_write = t_binding->rbac_assignments_write + t_parent->rbac_assignments_write
+      permission rbac_groups_read = t_binding->rbac_groups_read + t_parent->rbac_groups_read
+      permission rbac_groups_write = t_binding->rbac_groups_write + t_parent->rbac_groups_write
+      permission rbac_principal_read = t_binding->rbac_principal_read + t_parent->rbac_principal_read
+      permission rbac_roles_read = t_binding->rbac_roles_read + t_parent->rbac_roles_read
+      permission rbac_roles_write = t_binding->rbac_roles_write + t_parent->rbac_roles_write
+      permission rbac_workspace_create = t_binding->rbac_workspace_create + t_parent->rbac_workspace_create
+      permission rbac_workspace_delete = t_binding->rbac_workspace_delete + t_parent->rbac_workspace_delete
+      permission rbac_workspace_edit = t_binding->rbac_workspace_edit + t_parent->rbac_workspace_edit
+      permission rbac_workspace_move = t_binding->rbac_workspace_move + t_parent->rbac_workspace_move
+      permission rbac_workspace_view = t_binding->rbac_workspace_view + t_parent->rbac_workspace_view
+      permission rbac_workspaces_role_binding_grant = t_binding->rbac_workspaces_role_binding_grant + t_parent->rbac_workspaces_role_binding_grant
+      permission rbac_workspaces_role_binding_revoke = t_binding->rbac_workspaces_role_binding_revoke + t_parent->rbac_workspaces_role_binding_revoke
+      permission rbac_workspaces_role_binding_view = t_binding->rbac_workspaces_role_binding_view + t_parent->rbac_workspaces_role_binding_view
+      permission role_binding_grant = rbac_workspaces_role_binding_grant
+      permission role_binding_revoke = rbac_workspaces_role_binding_revoke
+      permission role_binding_view = rbac_workspaces_role_binding_view
+      permission view = rbac_workspace_view
+    }

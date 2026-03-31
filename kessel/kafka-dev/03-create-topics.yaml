@@ -1,0 +1,46 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kafka-create-topics
+  namespace: rbac-local
+  labels:
+    app: kafka-topics
+spec:
+  ttlSecondsAfterFinished: 100
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: kafka-topics
+        image: confluentinc/cp-kafka:7.7.0
+        command:
+        - /bin/bash
+        - -c
+        - |
+          # Wait for Kafka to be ready
+          echo "Waiting for Kafka to be ready..."
+          cub kafka-ready -b rbac-local-kafka:9092 1 60
+
+          # Create RBAC consumer topic
+          kafka-topics --bootstrap-server rbac-local-kafka:9092 \
+            --create --if-not-exists \
+            --topic rbac-consumer-replication-event \
+            --partitions 1 \
+            --replication-factor 1
+
+          # Create inventory outbox topics (for CDC via Debezium)
+          kafka-topics --bootstrap-server rbac-local-kafka:9092 \
+            --create --if-not-exists \
+            --topic outbox.event.kessel.tuples \
+            --partitions 1 \
+            --replication-factor 1
+
+          kafka-topics --bootstrap-server rbac-local-kafka:9092 \
+            --create --if-not-exists \
+            --topic outbox.event.kessel.resources \
+            --partitions 1 \
+            --replication-factor 1
+
+          echo "Topics created successfully"
+          kafka-topics --bootstrap-server rbac-local-kafka:9092 --list

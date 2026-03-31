@@ -1,0 +1,42 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rbac-init
+  namespace: rbac-local
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: rbac-init
+          image: insights-rbac:local
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              cd /opt/rbac/rbac
+              echo "=== Running migrations ==="
+              python manage.py migrate
+              echo "=== Running seeds ==="
+              python manage.py seeds
+              echo "=== Provisioning test data ==="
+              python manage.py provision_test_data --clean
+              echo "=== Init complete ==="
+          envFrom:
+            - configMapRef:
+                name: rbac-config
+          volumeMounts:
+            - name: role-definitions
+              mountPath: /opt/rbac/rbac/management/role/definitions
+              readOnly: true
+            - name: role-permissions
+              mountPath: /opt/rbac/rbac/management/role/permissions
+              readOnly: true
+      volumes:
+        - name: role-definitions
+          configMap:
+            name: rbac-role-definitions
+        - name: role-permissions
+          configMap:
+            name: rbac-role-permissions

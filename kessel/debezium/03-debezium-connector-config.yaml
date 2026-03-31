@@ -1,0 +1,34 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: acm-kessel-debezium-connector
+  namespace: rbac-local
+data:
+  debezium-connector.json: |
+    {
+      "name": "inventory-debezium-connector",
+      "config": {
+        "slot.name": "inventory_api_debezium",
+        "snapshot.mode": "no_data",
+        "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+        "database.hostname": "rbac-db.rbac-local.svc.cluster.local",
+        "database.port": "5432",
+        "database.user": "inventoryapi",
+        "database.password": "postgres",
+        "database.dbname": "inventory",
+        "topic.prefix": "kessel-inventory",
+        "table.exclude.list": ".*",
+        "message.prefix.include.list": "kessel.tuples,kessel.resources",
+        "transforms": "decode,outbox",
+        "transforms.decode.type": "io.debezium.connector.postgresql.transforms.DecodeLogicalDecodingMessageContent",
+        "transforms.outbox.type": "io.debezium.transforms.outbox.EventRouter",
+        "transforms.outbox.route.topic.replacement": "outbox.event.kessel.tuples",
+        "transforms.outbox.table.fields.additional.placement": "operation:header,txid:header",
+        "transforms.outbox.table.expand.json.payload": true,
+        "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+        "plugin.name": "pgoutput",
+        "poll.interval.ms": 250,
+        "heartbeat.interval.ms": 30000,
+        "heartbeat.action.query": "SELECT pg_logical_emit_message(false, 'heartbeat', now()::varchar);"
+      }
+    }
